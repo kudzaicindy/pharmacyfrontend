@@ -1,18 +1,19 @@
 /**
  * API Configuration
- * 
- * Backend Server: http://localhost:8000
- * API Base URL: http://localhost:8000/api/chatbot
- * 
- * All chatbot endpoints are prefixed with the API_BASE_URL
- * 
- * Common Issues:
- * - ERR_CONNECTION_REFUSED: Django server not running. Run: python manage.py runserver
- * - CORS Errors: Ensure backend allows requests from http://localhost:5173
+ *
+ * Production: https://pharmacybackend-qpfe.onrender.com/api/chatbot
+ * Development: set VITE_API_URL in .env or defaults to production.
+ *
+ * All chatbot endpoints are prefixed with the API_BASE_URL.
  */
 
-// API Base URL - Points to Django backend chatbot API
-const API_BASE_URL = 'http://localhost:8000/api/chatbot';
+const PRODUCTION_API_URL = 'https://pharmacybackend-qpfe.onrender.com/api/chatbot';
+const DEV_API_URL = 'http://localhost:8000/api/chatbot';
+
+// Use VITE_API_URL if set (e.g. in .env), else production in prod build, localhost in dev
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.DEV ? DEV_API_URL : PRODUCTION_API_URL);
 
 // Endpoint paths
 const ENDPOINTS = {

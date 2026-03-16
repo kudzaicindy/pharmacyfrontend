@@ -67,6 +67,21 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
     scrollToBottom()
   }, [messages, pharmacyResultsDisplay])
 
+  // Lock body scroll when chatbot is open (keeps mobile view stable)
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+      document.documentElement.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+      document.documentElement.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+      document.documentElement.style.overflow = ''
+    }
+  }, [isOpen])
+
   // Stop polling when chat is closed or component unmounts
   useEffect(() => {
     return () => {
@@ -183,8 +198,8 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
           const rp = response.pharmacy_responses
           const rankingPending = rp?.some(p => p.ranking_pending === true) ?? false
           const fromLive = !!response.from_live_inventory
-          const medName = response.live_inventory_medicine || (rp[0]?.medicine_responses?.[0]?.medicine) || (rp[0]?.medicine_name) || null
-          const requestedMeds = response.medicine_names || response.suggested_medicines || null
+          const medName = response.live_inventory_medicine || (rp[0]?.medicines_breakdown?.[0]?.medicine) || (rp[0]?.medicine_responses?.[0]?.medicine) || (rp[0]?.medicine_name) || null
+          const requestedMeds = response.medicine_names || response.suggested_medicines || getMedicineNamesFromResponses(rp)
           updatePharmacyResultsDisplay(rp, response.recommendation || null, rankingPending, fromLive, medName, requestedMeds)
           if (!rankingPending) stopPolling()
         }
@@ -271,7 +286,7 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
 
       if (count > 0) {
         const rankingPending = responses.some(p => p.ranking_pending === true)
-        const requestedMeds = data?.medicine_names || data?.suggested_medicines || null
+        const requestedMeds = data?.medicine_names || data?.suggested_medicines || getMedicineNamesFromResponses(responses)
         updatePharmacyResultsDisplay(responses, recommendation, rankingPending, false, null, requestedMeds)
         if (!rankingPending) {
           stopPolling()
@@ -283,23 +298,19 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
     }
   }
 
-  const getStockLabel = (pharmacy) => {
-    if (!pharmacy) return null
-    const status = pharmacy.stock_status || pharmacy.stock_status_per_medicine
-    if (status) {
-      const s = typeof status === 'string' ? status : (status?.status || status?.overall)
-      if (s === 'low_stock' || s === 'low') return 'Low stock'
-      if (s === 'in_stock' || s === 'enough' || s === 'adequate') return 'Enough stock'
-      if (s === 'out_of_stock') return 'Out of stock'
-    }
-    if (typeof pharmacy.low_stock === 'boolean') return pharmacy.low_stock ? 'Low stock' : 'Enough stock'
-    const qty = pharmacy.available_quantity ?? pharmacy.quantity
-    const threshold = pharmacy.low_stock_threshold ?? 10
-    if (typeof qty === 'number') return qty <= threshold ? 'Low stock' : 'Enough stock'
-    return null
+  /** Derive medicine names from pharmacy responses when API sends medicines_breakdown (or medicine_responses) but not suggested_medicines */
+  const getMedicineNamesFromResponses = (responses) => {
+    if (!Array.isArray(responses) || responses.length === 0) return []
+    const names = new Set()
+    responses.forEach((p) => {
+      const breakdown = p.medicines_breakdown || p.medicine_responses || []
+      breakdown.forEach((item) => {
+        const name = item.medicine || item.medicine_name
+        if (name) names.add(typeof name === 'string' ? name : String(name))
+      })
+    })
+    return Array.from(names)
   }
-
-  const getStockDisplay = (pharmacy) => getStockLabel(pharmacy) || '—'
 
   const updatePharmacyResultsDisplay = (responses, recommendation = null, rankingPending = false, fromLiveInventory = false, liveInventoryMedicine = null, requestedMedicines = null) => {
     const availablePharmacies = responses.filter(p => p.medicine_available)
@@ -307,8 +318,17 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
     const count = availablePharmacies.length
     const pharmacyWord = count === 1 ? 'pharmacy' : 'pharmacies'
 
+    // Use provided list or derive from medicines_breakdown / medicine_responses
+    const resolvedMedicines = (Array.isArray(requestedMedicines) && requestedMedicines.length > 0)
+      ? requestedMedicines
+      : getMedicineNamesFromResponses(responses)
+
     // Header based on ranking status
     let resultText = ''
+    const medicineLabel = resolvedMedicines.length > 0 ? resolvedMedicines.join(', ') : null
+    if (medicineLabel) {
+      resultText += `💊 **Searching for:** ${medicineLabel}\n\n`
+    }
     if (rankingPending) {
       resultText += `✅ **${count} ${pharmacyWord} have responded. More may respond. Final ranking in 2 minutes.**\n\n`
     } else {
@@ -337,15 +357,17 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
         if (pharmacy.ranking_score !== undefined) {
           resultText += `   ⭐ Score: ${pharmacy.ranking_score.toFixed(1)}\n`
         }
-        resultText += `   📦 Stock: ${getStockDisplay(pharmacy)}\n`
-        // Display medicine-specific availability if available
-        if (pharmacy.medicine_responses && pharmacy.medicine_responses.length > 0) {
+        // Display medicines (medicines_breakdown or medicine_responses) — no separate Stock line
+        const medList = pharmacy.medicines_breakdown || pharmacy.medicine_responses || []
+        if (medList.length > 0) {
           resultText += `   💊 **Medicines:**\n`
-          pharmacy.medicine_responses.forEach((medResp) => {
+          medList.forEach((medResp) => {
+            const name = medResp.medicine || medResp.medicine_name || '—'
             const statusIcon = medResp.available ? '✅' : '❌'
-            resultText += `      ${statusIcon} ${medResp.medicine}: `
+            resultText += `      ${statusIcon} ${name}: `
             if (medResp.available) {
               resultText += `$${medResp.price || 'N/A'}`
+              if (medResp.quantity != null) resultText += ` (qty ${medResp.quantity})`
             } else {
               resultText += `Not available`
             }
@@ -355,7 +377,6 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
             resultText += `\n`
           })
         } else {
-          // Fallback to overall price if no medicine-specific data
           resultText += `   💰 Price: $${pharmacy.price || 'N/A'}\n`
         }
         
@@ -389,9 +410,17 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
         resultText += `   📍 Distance: ${pharmacy.distance_km?.toFixed(1) || 'N/A'} km\n`
         resultText += `   ⏱️ Travel Time: ${pharmacy.estimated_travel_time || 'N/A'} min\n`
         resultText += `   💰 Price: $${pharmacy.price || 'N/A'}\n`
-        resultText += `   📦 Stock: ${getStockDisplay(pharmacy)}\n`
         resultText += `   ⏳ Preparation Time: ${pharmacy.preparation_time || 0} min\n`
         resultText += `   🕐 Total Time: ${pharmacy.total_time_minutes || 'N/A'} min\n`
+        const fallbackMedList = pharmacy.medicines_breakdown || pharmacy.medicine_responses || []
+        if (fallbackMedList.length > 0) {
+          resultText += `   💊 **Medicines:**\n`
+          fallbackMedList.forEach((medResp) => {
+            const name = medResp.medicine || medResp.medicine_name || '—'
+            const statusIcon = medResp.available ? '✅' : '❌'
+            resultText += `      ${statusIcon} ${name}: ${medResp.available ? `$${medResp.price || 'N/A'}${medResp.quantity != null ? ` (qty ${medResp.quantity})` : ''}` : 'Not available'}\n`
+          })
+        }
         // Handle alternative medicines
         if (pharmacy.alternative_medicines && pharmacy.alternative_medicines.length > 0) {
           const altList = pharmacy.alternative_medicines.map(alt => {
@@ -463,7 +492,7 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
       resultText,
       from_live_inventory: fromLiveInventory,
       live_inventory_medicine: liveInventoryMedicine,
-      requested_medicines: Array.isArray(requestedMedicines) ? requestedMedicines : (prev?.requested_medicines || [])
+      requested_medicines: resolvedMedicines.length > 0 ? resolvedMedicines : (prev?.requested_medicines || [])
     }))
     setConversationState('showing_results')
 
@@ -615,8 +644,8 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
           if (response.pharmacy_responses && response.pharmacy_responses.length > 0 && matches) {
             const rp = response.pharmacy_responses
             const fromLive = !!response.from_live_inventory
-            const medName = response.live_inventory_medicine || (rp[0]?.medicine_responses?.[0]?.medicine) || (rp[0]?.medicine_name) || null
-            const requestedMeds = response.medicine_names || response.suggested_medicines || null
+            const medName = response.live_inventory_medicine || (rp[0]?.medicines_breakdown?.[0]?.medicine) || (rp[0]?.medicine_responses?.[0]?.medicine) || (rp[0]?.medicine_name) || null
+            const requestedMeds = response.medicine_names || response.suggested_medicines || getMedicineNamesFromResponses(rp)
             updatePharmacyResultsDisplay(rp, response.recommendation || null, rp.some(p => p.ranking_pending), fromLive, medName, requestedMeds)
             stopPolling()
           }
@@ -728,8 +757,8 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
             const rp = response.pharmacy_responses
             const rankingPending = rp.some(p => p.ranking_pending === true)
             const fromLive = !!response.from_live_inventory
-            const medName = response.live_inventory_medicine || (rp[0]?.medicine_responses?.[0]?.medicine) || (rp[0]?.medicine_name) || null
-            const requestedMeds = response.medicine_names || response.suggested_medicines || null
+            const medName = response.live_inventory_medicine || (rp[0]?.medicines_breakdown?.[0]?.medicine) || (rp[0]?.medicine_responses?.[0]?.medicine) || (rp[0]?.medicine_name) || null
+            const requestedMeds = response.medicine_names || response.suggested_medicines || getMedicineNamesFromResponses(rp)
             updatePharmacyResultsDisplay(rp, response.recommendation || null, rankingPending, fromLive, medName, requestedMeds)
             if (!rankingPending) stopPolling()
         } else if (matches) {
@@ -962,10 +991,6 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
           </div>
         </div>
 
-        <div className="chatbot-disclaimer">
-          ⚠️ <strong>Medical Disclaimer:</strong> MediBot provides general health information only — always consult a qualified healthcare provider for medical advice.
-        </div>
-
         <div className="chatbot-messages">
           {messages.map((message) => (
             <div key={message.id} className={`message ${message.sender}`}>
@@ -1053,6 +1078,11 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
                 <Bot className="avatar-icon" />
               </div>
               <div className="message-content results-message">
+                {Array.isArray(pharmacyResultsDisplay.requested_medicines) && pharmacyResultsDisplay.requested_medicines.length > 0 && (
+                  <div className="results-medicine-for">
+                    💊 <strong>Medicines for this search:</strong> {pharmacyResultsDisplay.requested_medicines.join(', ')}
+                  </div>
+                )}
                 <div className="results-content">
                   {(pharmacyResultsDisplay.resultText || '').split('\n').map((line, index) => {
                     if (line.includes('**') && line.includes('**')) {
@@ -1077,9 +1107,18 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
                 )}
                 {pharmacyResultsDisplay.from_live_inventory && !pharmacyResultsDisplay.rankingPending && pharmacyResultsDisplay.responses?.length > 0 && (
                   <div className="pharmacy-reserve-section">
-                    <p className="pharmacy-reserve-title">Reserve at pharmacy (pick up within 2 hours)</p>
+                    {Array.isArray(pharmacyResultsDisplay.requested_medicines) && pharmacyResultsDisplay.requested_medicines.length > 0 && (
+                      <p className="pharmacy-reserve-medicines">💊 <strong>Medicine(s):</strong> {pharmacyResultsDisplay.requested_medicines.join(', ')}</p>
+                    )}
+                    <p className="pharmacy-reserve-title">Reserve at pharmacy (pick up within 2 hours) — choose which medicine to reserve</p>
                     {pharmacyResultsDisplay.responses.filter(p => p.medicine_available).map((pharmacy) => {
                       const isReserved = reservedPharmacies.has(pharmacy.pharmacy_id)
+                      const breakdown = pharmacy.medicines_breakdown || pharmacy.medicine_responses || []
+                      const availableAtPharmacy = breakdown.filter(m => m.available === true)
+                      const singleMedicine = availableAtPharmacy.length === 1
+                        ? availableAtPharmacy[0].medicine || availableAtPharmacy[0].medicine_name
+                        : null
+                      const fallbackMedicine = pharmacyResultsDisplay.live_inventory_medicine || pharmacy.medicine_name || pharmacyResultsDisplay?.requested_medicines?.[0]
                       return (
                         <div key={pharmacy.pharmacy_id || pharmacy.pharmacy_name} className="pharmacy-reserve-row">
                           <div className="pharmacy-reserve-info">
@@ -1094,18 +1133,36 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
                             <span className="pharmacy-reserved-badge">Reserved</span>
                           ) : (
                             <div className="pharmacy-reserve-actions">
-                              <button
-                                type="button"
-                                className="btn-reserve"
-                                onClick={() => handleReserve(
-                                  pharmacy.pharmacy_id,
-                                  pharmacy.pharmacy_name,
-                                  pharmacyResultsDisplay.live_inventory_medicine || pharmacy.medicine_name || pharmacy.medicine_responses?.[0]?.medicine || pharmacyResultsDisplay?.requested_medicines?.[0],
-                                  1
-                                )}
-                              >
-                                Reserve
-                              </button>
+                              {availableAtPharmacy.length > 0 ? (
+                                availableAtPharmacy.map((med) => {
+                                  const medName = med.medicine || med.medicine_name
+                                  if (!medName) return null
+                                  return (
+                                    <button
+                                      key={medName}
+                                      type="button"
+                                      className="btn-reserve btn-reserve-medicine"
+                                      onClick={() => handleReserve(pharmacy.pharmacy_id, pharmacy.pharmacy_name, medName, 1)}
+                                      title={`Reserve ${medName} at this pharmacy`}
+                                    >
+                                      Reserve {medName}
+                                    </button>
+                                  )
+                                })
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="btn-reserve"
+                                  onClick={() => handleReserve(
+                                    pharmacy.pharmacy_id,
+                                    pharmacy.pharmacy_name,
+                                    singleMedicine || fallbackMedicine,
+                                    1
+                                  )}
+                                >
+                                  Reserve
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 className="btn-directions"
@@ -1216,6 +1273,7 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
             </div>
           </div>
           <p className="input-hint">MediBot can make mistakes. For emergencies, call your local health centre.</p>
+          <p className="chatbot-disclaimer-inline">⚠️ General health info only — consult a healthcare provider for medical advice.</p>
         </div>
       </div>
     </div>

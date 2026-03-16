@@ -1,8 +1,11 @@
+import { useState } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { Menu, X } from 'lucide-react'
 import './PatientLayout.css'
 
 export default function PatientLayout() {
   const navigate = useNavigate()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const patient = JSON.parse(localStorage.getItem('patient') || '{}')
   const name = patient?.name || 'Guest'
   const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'GU'
@@ -11,6 +14,8 @@ export default function PatientLayout() {
     localStorage.removeItem('patient')
     navigate('/')
   }
+
+  const closeMobileMenu = () => setMobileMenuOpen(false)
 
   const nav = [
     { to: '/patient/dashboard', label: 'Dashboard', icon: '🏠' },
@@ -28,7 +33,28 @@ export default function PatientLayout() {
 
   return (
     <div className="pl-wrap">
-      <aside className="sidebar">
+      {/* Mobile top bar with hamburger */}
+      <header className="pl-mobile-header" aria-hidden="true">
+        <div className="pl-mobile-header-inner">
+          <span className="pl-mobile-logo">Medi<span>Connect</span></span>
+          <button
+            type="button"
+            className="pl-hamburger"
+            onClick={() => setMobileMenuOpen((o) => !o)}
+            aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={mobileMenuOpen}
+          >
+            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+        </div>
+      </header>
+      {/* Mobile menu overlay */}
+      <div
+        className={`pl-mobile-overlay ${mobileMenuOpen ? 'pl-mobile-overlay-open' : ''}`}
+        onClick={closeMobileMenu}
+        aria-hidden="true"
+      />
+      <aside className={`sidebar pl-sidebar ${mobileMenuOpen ? 'pl-sidebar-open' : ''}`}>
         <div className="sb-logo">Medi<span>Connect</span></div>
         <div className="sb-user-card">
           <div className="sb-av" style={{ background: 'var(--teal)' }}>{initials}</div>
@@ -39,7 +65,7 @@ export default function PatientLayout() {
         </div>
         <div className="sb-section">Menu</div>
         {nav.map(({ to, label, icon, badge }) => (
-          <NavLink key={to} to={to} className={({ isActive }) => `sb-item ${isActive ? 'active' : ''}`}>
+          <NavLink key={to} to={to} className={({ isActive }) => `sb-item ${isActive ? 'active' : ''}`} onClick={closeMobileMenu}>
             <span className="ic">{icon}</span>
             {label}
             {badge != null && <span className="sb-badge teal">{badge}</span>}
@@ -47,14 +73,14 @@ export default function PatientLayout() {
         ))}
         <div className="sb-section">Account</div>
         {account.map(({ to, label, icon, badge }) => (
-          <NavLink key={to} to={to} className={({ isActive }) => `sb-item ${isActive ? 'active' : ''}`}>
+          <NavLink key={to} to={to} className={({ isActive }) => `sb-item ${isActive ? 'active' : ''}`} onClick={closeMobileMenu}>
             <span className="ic">{icon}</span>
             {label}
             {badge != null && <span className="sb-badge">{badge}</span>}
           </NavLink>
         ))}
         <div className="sb-foot">
-          <button type="button" className="sb-item sb-item-btn" onClick={handleLogout}>
+          <button type="button" className="sb-item sb-item-btn" onClick={() => { closeMobileMenu(); handleLogout(); }}>
             <span className="ic">🚪</span>
             Sign Out
           </button>

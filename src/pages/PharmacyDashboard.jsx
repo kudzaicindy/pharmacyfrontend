@@ -20,6 +20,7 @@ import {
   Award,
   HeartPulse,
   X,
+  Menu,
   AlertCircle,
   ChevronDown,
   ChevronRight,
@@ -71,6 +72,7 @@ function PharmacyDashboard() {
   const [inventoryForm, setInventoryForm] = useState({ items: [] })
   const [reservations, setReservations] = useState([])
   const [reservationsLoading, setReservationsLoading] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   // Load pharmacist data from localStorage
   useEffect(() => {
@@ -531,10 +533,32 @@ function PharmacyDashboard() {
   const lowStockItems = (inventory?.items || []).filter(i => (i.status === 'low_stock' || i.status === 'out_of_stock') && (i.quantity != null)).slice(0, 5)
   const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Today']
 
+  const closeMobileMenu = () => setMobileMenuOpen(false)
+
   return (
     <div className="pharmacy-dashboard">
+      {/* Mobile top bar with hamburger */}
+      <header className="ph-mobile-header" aria-hidden="true">
+        <div className="ph-mobile-header-inner">
+          <span className="ph-mobile-logo">Medi<span>Connect</span></span>
+          <button
+            type="button"
+            className="ph-hamburger"
+            onClick={() => setMobileMenuOpen((o) => !o)}
+            aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={mobileMenuOpen}
+          >
+            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+        </div>
+      </header>
+      <div
+        className={`ph-mobile-overlay ${mobileMenuOpen ? 'ph-mobile-overlay-open' : ''}`}
+        onClick={closeMobileMenu}
+        aria-hidden="true"
+      />
       {/* Sidebar - MediConnect style */}
-      <aside className="sidebar">
+      <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
         <div className="sb-logo">Medi<span>Connect</span></div>
         <div className="sb-pharmacy">
           <div className="sb-pharm-avatar">🏪</div>
@@ -547,7 +571,7 @@ function PharmacyDashboard() {
         <nav className="sidebar-nav">
           <button
             className={`nav-item ${activeTab === 'requests' ? 'active' : ''}`}
-            onClick={() => setActiveTab('requests')}
+            onClick={() => { setActiveTab('requests'); closeMobileMenu(); }}
           >
             <span className="ic">📥</span>
             <span>Requests</span>
@@ -555,14 +579,14 @@ function PharmacyDashboard() {
           </button>
           <button
             className={`nav-item ${activeTab === 'inventory' ? 'active' : ''}`}
-            onClick={() => setActiveTab('inventory')}
+            onClick={() => { setActiveTab('inventory'); closeMobileMenu(); }}
           >
             <span className="ic">💊</span>
             <span>Stock Manager</span>
           </button>
           <button
             className={`nav-item ${activeTab === 'reservations' ? 'active' : ''}`}
-            onClick={() => setActiveTab('reservations')}
+            onClick={() => { setActiveTab('reservations'); closeMobileMenu(); }}
           >
             <span className="ic">📋</span>
             <span>Orders</span>
@@ -572,7 +596,7 @@ function PharmacyDashboard() {
           </button>
           <button
             className={`nav-item ${activeTab === 'analytics' ? 'active' : ''}`}
-            onClick={() => setActiveTab('analytics')}
+            onClick={() => { setActiveTab('analytics'); closeMobileMenu(); }}
           >
             <span className="ic">📊</span>
             <span>Analytics</span>
@@ -582,7 +606,7 @@ function PharmacyDashboard() {
         <nav className="sidebar-nav">
           <button
             className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`}
-            onClick={() => setActiveTab('settings')}
+            onClick={() => { setActiveTab('settings'); closeMobileMenu(); }}
           >
             <span className="ic">⚙️</span>
             <span>Settings</span>
