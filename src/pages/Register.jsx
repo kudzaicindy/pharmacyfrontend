@@ -121,6 +121,7 @@ function Register() {
     const display_name = form.querySelector('#name')?.value?.trim()
     const email = form.querySelector('#email')?.value?.trim()
     const phone = form.querySelector('#phone')?.value?.trim()
+    const password = form.querySelector('#password')?.value?.trim()
 
     setError('')
     setSuccess('')
@@ -130,6 +131,7 @@ function Register() {
       display_name,
       email,
       phone: phone || undefined,
+      password: password || undefined,
       preferred_language: 'en',
     }
     const existingSessionId = localStorage.getItem('chatbot_session_id')

@@ -26,6 +26,7 @@ const ENDPOINTS = {
   REGISTER_PATIENT: '/register/patient/',
   PHARMACIST_LOGIN: '/pharmacist/login/',
   PATIENT_LOGIN: '/patient/login/',
+  ADMIN_LOGIN: '/admin/login/',
   GET_PHARMACIES: '/pharmacies/',
   PHARMACY_REQUESTS: (pharmacyId) => `/pharmacy/requests/?pharmacy_id=${pharmacyId}`,
   PHARMACIST_REQUESTS: (pharmacistId) => `/pharmacist/requests/?pharmacist_id=${pharmacistId}`,
@@ -50,6 +51,7 @@ const ENDPOINTS = {
   PATIENT_NOTIFICATIONS: '/patient/notifications/',
   PATIENT_NOTIFICATIONS_MARK_READ: '/patient/notifications/mark-read/',
   PATIENT_PROFILE: '/patient/profile/',
+  ADMIN_DASHBOARD_DATA: '/admin/dashboard/data/',
 };
 
 // Generate session ID
@@ -318,6 +320,95 @@ export async function pharmacistLogin(email, password) {
     return await response.json();
   } catch (error) {
     console.error('Error logging in:', error);
+    throw error;
+  }
+}
+
+/**
+ * Authenticate a patient
+ *
+ * @param {string} email - Patient email
+ * @param {string} password - Patient password
+ * @returns {Promise<Object>} Login response with patient/session info
+ *
+ * Endpoint: POST /api/chatbot/patient/login/
+ */
+export async function patientLogin(email, password) {
+  try {
+    const response = await fetch(`${API_BASE_URL}${ENDPOINTS.PATIENT_LOGIN}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email,
+        password,
+      }),
+    });
+
+    const text = await response.text();
+    let data = {};
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      data = {};
+    }
+
+    if (!response.ok) {
+      throw new Error(data.error || data.message || data.detail || 'Patient login failed');
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error logging in patient:', error);
+    throw error;
+  }
+}
+
+/**
+ * Authenticate admin (server endpoint configurable)
+ *
+ * Uses VITE_ADMIN_LOGIN_PATH when provided; defaults to /admin/login/.
+ * If your backend exposes admin auth at another path, set:
+ * VITE_ADMIN_LOGIN_PATH=/api/chatbot/admin/login/
+ */
+export async function adminLogin(email, password) {
+  try {
+    const adminPath = import.meta.env.VITE_ADMIN_LOGIN_PATH || ENDPOINTS.ADMIN_LOGIN;
+    const loginUrl = adminPath.startsWith('http')
+      ? adminPath
+      : `${API_BASE_URL.replace(/\/$/, '')}${adminPath.startsWith('/') ? '' : '/'}${adminPath}`;
+
+    const response = await fetch(loginUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email,
+        password,
+      }),
+    });
+
+    const text = await response.text();
+    let data = {};
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      data = {};
+    }
+
+    if (!response.ok) {
+      const baseMessage = data.error || data.message || data.detail || 'Admin login failed';
+      if (response.status === 404) {
+        throw new Error('Admin login endpoint not found. Set VITE_ADMIN_LOGIN_PATH to your backend admin auth endpoint.');
+      }
+      throw new Error(baseMessage);
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error logging in admin:', error);
     throw error;
   }
 }
@@ -796,5 +887,24 @@ export async function updatePatientProfile(sessionId, conversationId, patch) {
     body: JSON.stringify(patch),
   });
   if (!res.ok) throw new Error('Failed to update profile');
+  return res.json();
+}
+
+/**
+ * Get all admin dashboard data in one call
+ *
+ * @param {number} limit - Optional list limit (default 50, max 200)
+ * @returns {Promise<Object>} { overview, breakdown, lists, meta }
+ *
+ * Endpoint: GET /api/chatbot/admin/dashboard/data/?limit={limit}
+ */
+export async function getAdminDashboardData(limit = 50) {
+  const safeLimit = Math.max(1, Math.min(200, Number(limit) || 50));
+  const url = `${API_BASE_URL}${ENDPOINTS.ADMIN_DASHBOARD_DATA}?limit=${safeLimit}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || err.message || err.detail || 'Failed to fetch admin dashboard data');
+  }
   return res.json();
 }

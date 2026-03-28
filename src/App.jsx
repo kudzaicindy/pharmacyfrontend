@@ -13,6 +13,7 @@ import PatientNotifications from './pages/PatientNotifications'
 import PatientProfile from './pages/PatientProfile'
 import PatientSettings from './pages/PatientSettings'
 import PharmacyDashboard from './pages/PharmacyDashboard'
+import AdminDashboard from './pages/AdminDashboard'
 import './App.css'
 
 function App() {
@@ -38,6 +39,7 @@ function App() {
         </Route>
 
         <Route path="/pharmacy/dashboard" element={<PharmacyDashboard />} />
+        <Route path="/admin/dashboard" element={<AdminDashboard />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Router>

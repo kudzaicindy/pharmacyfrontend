@@ -26,7 +26,9 @@ import {
   ChevronRight,
   ThumbsDown,
   Lightbulb,
-  ShieldAlert
+  ShieldAlert,
+  Plus,
+  Trash2
 } from 'lucide-react'
 import { getPharmacistRequests, submitPharmacyResponse, getPharmacistInventory, updatePharmacistInventory, getPharmacistReservations, confirmReservation, completeReservation } from '../utils/api'
 import './PharmacyDashboard.css'
@@ -62,7 +64,8 @@ function PharmacyDashboard() {
   const [responseForm, setResponseForm] = useState({
     medicines: {}, // { 'medicine_name': { available: false, price: '', alternative: '' } }
     preparation_time: 0,
-    notes: ''
+    notes: '',
+    additionalMedicines: [] // { id, medicine, price, quantity } → sent as medicine_responses
   })
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -219,7 +222,8 @@ function PharmacyDashboard() {
     setResponseForm({
       medicines,
       preparation_time: 0,
-      notes: ''
+      notes: '',
+      additionalMedicines: []
     })
     setError('')
   }
@@ -378,6 +382,21 @@ function PharmacyDashboard() {
       }
     }
 
+    const extrasCheck = responseForm.additionalMedicines || []
+    for (const row of extrasCheck) {
+      const name = (row.medicine || '').trim()
+      const priceRaw =
+        row.price !== '' && row.price != null ? String(row.price).trim() : ''
+      if (name && !priceRaw) {
+        setError(`Enter a price for additional medicine: ${name}`)
+        return
+      }
+      if (priceRaw && !name) {
+        setError('Enter a medicine name for each additional row that has a price')
+        return
+      }
+    }
+
     setSubmitting(true)
     setError('')
 
@@ -427,6 +446,43 @@ function PharmacyDashboard() {
         expiry: medicineData.expiry || null,
         alternative: medicineData.alternative || null
       }))
+    }
+
+    // Merge additional medicines (explicit rows) into medicine_responses — not notes
+    const extras = responseForm.additionalMedicines || []
+    extras.forEach((row) => {
+      const name = (row.medicine || '').trim()
+      const priceRaw = row.price !== '' && row.price != null ? String(row.price).trim() : ''
+      if (!name || !priceRaw) return
+      const quantity = (row.quantity || '').trim() || null
+      const newRow = {
+        medicine: name,
+        available: true,
+        price: priceRaw,
+        quantity,
+        expiry: null,
+        alternative: null
+      }
+      const lower = name.toLowerCase()
+      const idx = medicineResponses.findIndex((m) => (m.medicine || '').toLowerCase() === lower)
+      if (idx >= 0) {
+        medicineResponses[idx] = {
+          ...medicineResponses[idx],
+          ...newRow,
+          available: true
+        }
+      } else {
+        medicineResponses.push(newRow)
+      }
+    })
+
+    atLeastOneAvailable =
+      atLeastOneAvailable ||
+      medicineResponses.some((m) => m.available && m.price != null && m.price !== '')
+    const priced = medicineResponses.filter((m) => m.available && m.price != null && m.price !== '')
+    if (priced.length > 0) {
+      const prices = priced.map((m) => parseFloat(m.price)).filter((p) => !Number.isNaN(p))
+      avgPrice = prices.length > 0 ? (prices.reduce((a, b) => a + b, 0) / prices.length).toFixed(2) : avgPrice
     }
 
     try {
@@ -1085,17 +1141,23 @@ function PharmacyDashboard() {
 
         {/* Response Modal */}
         {selectedRequest && (
-          <div className="modal-overlay" onClick={handleCloseResponse}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
-                <h2>Respond to Request</h2>
-                <button className="modal-close" onClick={handleCloseResponse}>
+          <div className="modal-overlay response-modal-overlay" onClick={handleCloseResponse}>
+            <div className="modal-content response-modal-content" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header response-modal-header">
+                <div className="response-modal-title-wrap">
+                  <span className="response-modal-icon" aria-hidden>💬</span>
+                  <div>
+                    <h2>Respond to Request</h2>
+                    <p className="response-modal-subtitle">Fill in stock and pricing for the patient</p>
+                  </div>
+                </div>
+                <button type="button" className="modal-close response-modal-close" onClick={handleCloseResponse} aria-label="Close">
                   <X className="icon" />
                 </button>
               </div>
 
-              <div className="modal-body">
-                <div className="request-summary">
+              <div className="modal-body response-modal-body">
+                <div className="request-summary response-request-summary">
                   <h3>Request Details</h3>
                   {selectedRequest.symptoms && (
                     <p><strong>Symptoms:</strong> {selectedRequest.symptoms}</p>
@@ -1293,6 +1355,92 @@ function PharmacyDashboard() {
                     />
                   </div>
 
+                  <div className="form-group additional-medicines-section">
+                    <div className="additional-medicines-header">
+                      <label>Also in stock (optional)</label>
+                      <span className="additional-medicines-sub">
+                        Use for extra items you stock (e.g. antibiotics). Patients see these with prices in the app.
+                      </span>
+                    </div>
+                    {(responseForm.additionalMedicines || []).map((row) => (
+                      <div key={row.id} className="additional-medicine-row">
+                        <input
+                          type="text"
+                          placeholder="Medicine name"
+                          value={row.medicine}
+                          onChange={(e) => {
+                            const next = (responseForm.additionalMedicines || []).map((r) =>
+                              r.id === row.id ? { ...r, medicine: e.target.value } : r
+                            )
+                            setResponseForm({ ...responseForm, additionalMedicines: next })
+                          }}
+                          className="additional-medicine-name"
+                        />
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          placeholder="Price"
+                          value={row.price}
+                          onChange={(e) => {
+                            const next = (responseForm.additionalMedicines || []).map((r) =>
+                              r.id === row.id ? { ...r, price: e.target.value } : r
+                            )
+                            setResponseForm({ ...responseForm, additionalMedicines: next })
+                          }}
+                          className="additional-medicine-price"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Qty (optional)"
+                          value={row.quantity}
+                          onChange={(e) => {
+                            const next = (responseForm.additionalMedicines || []).map((r) =>
+                              r.id === row.id ? { ...r, quantity: e.target.value } : r
+                            )
+                            setResponseForm({ ...responseForm, additionalMedicines: next })
+                          }}
+                          className="additional-medicine-qty"
+                        />
+                        <button
+                          type="button"
+                          className="btn-icon-remove"
+                          aria-label="Remove row"
+                          onClick={() => {
+                            setResponseForm({
+                              ...responseForm,
+                              additionalMedicines: (responseForm.additionalMedicines || []).filter(
+                                (r) => r.id !== row.id
+                              )
+                            })
+                          }}
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-add-medicine"
+                      onClick={() =>
+                        setResponseForm({
+                          ...responseForm,
+                          additionalMedicines: [
+                            ...(responseForm.additionalMedicines || []),
+                            {
+                              id: `extra-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+                              medicine: '',
+                              price: '',
+                              quantity: ''
+                            }
+                          ]
+                        })
+                      }
+                    >
+                      <Plus size={18} />
+                      Add medicine in stock
+                    </button>
+                  </div>
+
                   <div className="form-group">
                     <label>
                       {selectedRequest.request_type === 'symptom' ? 'Medicines you can supply (with prices)' : 'Alternative Medicines'} 
@@ -1300,19 +1448,12 @@ function PharmacyDashboard() {
                     {selectedRequest.request_type === 'symptom' ? (
                       <input
                         type="text"
+                        className="response-notes-input response-notes-input-symptom"
                         placeholder="e.g., Paracetamol $5.00, Ibuprofen $7.50, Aspirin $3.00"
                         value={responseForm.notes || ''}
                         onChange={(e) =>
                           setResponseForm({ ...responseForm, notes: e.target.value })
                         }
-                        style={{ 
-                          width: '100%', 
-                          padding: '0.875rem 1.125rem', 
-                          border: '2px solid #10b981', 
-                          borderRadius: '10px',
-                          fontSize: '0.9375rem',
-                          fontFamily: 'Inter, sans-serif'
-                        }}
                       />
                     ) : (
                       <textarea
@@ -1325,7 +1466,7 @@ function PharmacyDashboard() {
                       />
                     )}
                     {selectedRequest.request_type === 'symptom' && (
-                      <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.5rem' }}>
+                      <p className="response-notes-hint">
                         List the medicines you can supply for this request, with prices, e.g. “Paracetamol $5.00, Ibuprofen $7.50”.
                       </p>
                     )}
@@ -1333,12 +1474,13 @@ function PharmacyDashboard() {
                 </div>
               </div>
 
-              <div className="modal-footer">
-                <button className="btn btn-outline" onClick={handleCloseResponse}>
+              <div className="modal-footer response-modal-footer">
+                <button type="button" className="btn btn-outline" onClick={handleCloseResponse}>
                   Cancel
                 </button>
                 <button 
-                  className="btn btn-primary" 
+                  type="button"
+                  className="btn btn-primary response-submit-btn" 
                   onClick={handleSubmitResponse}
                   disabled={submitting}
                 >

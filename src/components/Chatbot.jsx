@@ -38,6 +38,9 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
   const lastRequestIdRef = useRef(null)
   const searchModeRef = useRef(initialMode)  // symptom | direct | prescription - for backend flow
   const currentRequestIdRef = useRef(null)   // for result isolation - ignore poll results for old requests
+  const nextMessageIdRef = useRef(2) // initial greeting uses id 1; every new message gets a unique id
+
+  const genMessageId = () => nextMessageIdRef.current++
 
   useEffect(() => {
     if (sessionId) {
@@ -116,6 +119,48 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
     return () => clearInterval(interval)
   }, [medicineRequestId, pollingInterval, pharmacyResultsDisplay, pollConfig])
 
+  // WebSocket: wake up polling immediately when a pharmacist responds
+  useEffect(() => {
+    if (!medicineRequestId) return
+
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
+    // IMPORTANT: use backend host/port, not frontend dev server
+    const backendHost = '127.0.0.1:8000' // Django server in dev; change for production backend host
+    const wsUrl = `${protocol}://${backendHost}/ws/chatbot/${medicineRequestId}/`
+
+    let socket
+    try {
+      socket = new WebSocket(wsUrl)
+    } catch (err) {
+      console.error('[WebSocket] failed to connect', err)
+      return undefined
+    }
+
+    socket.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        console.log('[WebSocket] message', data)
+        if (data.event === 'pharmacy_response' && data.medicine_request_id === medicineRequestId) {
+          fetchPharmacyResponses()
+        }
+      } catch (err) {
+        console.error('[WebSocket] parse error', err)
+      }
+    }
+
+    socket.onerror = (err) => {
+      console.error('[WebSocket] error', err)
+    }
+
+    return () => {
+      try {
+        socket.close()
+      } catch (err) {
+        // ignore
+      }
+    }
+  }, [medicineRequestId])
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
@@ -146,7 +191,7 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
 
   const askForManualLocation = () => {
     const botMessage = {
-      id: messages.length + 1,
+      id: genMessageId(),
       text: "I couldn't access your location automatically. Please enter your location (e.g., 'Harare, Zimbabwe' or '21 King Street, Harare')",
       sender: 'bot',
       timestamp: new Date(),
@@ -158,7 +203,7 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
 
   const handleLocationReceived = async (location) => {
     const botMessage = {
-      id: messages.length + 1,
+      id: genMessageId(),
       text: `Great! I found your location: ${location.address || `${location.latitude}, ${location.longitude}`}\n\nNow let me search for pharmacies near you that have the medicine you need...`,
       sender: 'bot',
       timestamp: new Date(),
@@ -198,17 +243,55 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
           const rp = response.pharmacy_responses
           const rankingPending = rp?.some(p => p.ranking_pending === true) ?? false
           const fromLive = !!response.from_live_inventory
-          const medName = response.live_inventory_medicine || (rp[0]?.medicines_breakdown?.[0]?.medicine) || (rp[0]?.medicine_responses?.[0]?.medicine) || (rp[0]?.medicine_name) || null
-          const requestedMeds = response.medicine_names || response.suggested_medicines || getMedicineNamesFromResponses(rp)
-          updatePharmacyResultsDisplay(rp, response.recommendation || null, rankingPending, fromLive, medName, requestedMeds)
-          if (!rankingPending) stopPolling()
+          const medName =
+            response.live_inventory_medicine ||
+            (rp[0]?.medicines_breakdown?.[0]?.medicine) ||
+            (rp[0]?.medicine_responses?.[0]?.medicine) ||
+            (rp[0]?.medicine_name) ||
+            null
+          const requestedMeds =
+            response.medicine_names ||
+            response.suggested_medicines ||
+            getMedicineNamesFromResponses(rp)
+
+          // Always refresh full results card with the latest list
+          updatePharmacyResultsDisplay(
+            rp,
+            response.recommendation || null,
+            rankingPending,
+            fromLive,
+            medName,
+            requestedMeds
+          )
+
+          // Optional “new arrivals” bubble using new_pharmacy_responses
+          if (response.is_new_pharmacy_responses === true) {
+            const newList =
+              Array.isArray(response.new_pharmacy_responses) && response.new_pharmacy_responses.length
+                ? response.new_pharmacy_responses
+                : rp
+
+            setMessages(prev => [
+              ...prev,
+              {
+                id: genMessageId(),
+                text: response.response || `New response(s) from ${newList.length} pharmacy(ies).`,
+                sender: 'bot',
+                timestamp: new Date(),
+                type: 'new_pharmacy_responses',
+                pharmacy_responses: newList
+              }
+            ])
+          }
+
+          // Do not stop polling here; fetchPharmacyResponses controls when to stop based on backend flags
         }
       }
       // Don't manually call fetchPharmacyResponses - let polling handle it
     } catch (error) {
       setIsTyping(false)
       const errorMessage = {
-        id: messages.length + 1,
+        id: genMessageId(),
         text: "Sorry, I encountered an error. Please try again.",
         sender: 'bot',
         timestamp: new Date(),
@@ -239,6 +322,7 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
     setReservedPharmacies(new Set())
     currentRequestIdRef.current = null
     lastRequestIdRef.current = null
+    nextMessageIdRef.current = 2
     const newSessionId = generateSessionId()
     setSessionId(newSessionId)
     setMessages([
@@ -255,6 +339,86 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
     } catch (err) {
       console.error('New search init:', err)
     }
+  }
+
+  const medRowKey = (item) =>
+    (item?.medicine || item?.medicine_name || '').toString().trim().toLowerCase()
+
+  /** True only when medicine is in stock; false wins over ambiguous sources after merge */
+  const medicineRowInStock = (m) => {
+    if (m == null) return false
+    if (m.available === false || m.available === 'false') return false
+    if (m.available === true || m.available === 'true') return true
+    const p = m.price
+    const hasPrice =
+      p != null &&
+      String(p).trim() !== '' &&
+      String(p).trim().toLowerCase() !== 'n/a' &&
+      String(p).trim().toLowerCase() !== 'null'
+    return hasPrice
+  }
+
+  /** Union rows from multiple API fields so extras (e.g. amoxicillin) are never hidden */
+  const mergeMedicineRows = (...lists) => {
+    const map = new Map()
+    for (const list of lists) {
+      if (!Array.isArray(list)) continue
+      for (const item of list) {
+        const k = medRowKey(item)
+        if (!k) continue
+        const old = map.get(k)
+        if (!old) {
+          map.set(k, { ...item })
+        } else {
+          const oF = old.available === false || old.available === 'false'
+          const iF = item.available === false || item.available === 'false'
+          const oT = old.available === true || old.available === 'true'
+          const iT = item.available === true || item.available === 'true'
+          let mergedAvailable
+          if (oF || iF) mergedAvailable = false
+          else if (oT || iT) mergedAvailable = true
+          else mergedAvailable = item.available !== undefined ? item.available : old.available
+
+          map.set(k, {
+            ...old,
+            ...item,
+            price:
+              item.price != null && String(item.price).trim() !== ''
+                ? item.price
+                : old.price,
+            quantity:
+              item.quantity != null && String(item.quantity).trim() !== ''
+                ? item.quantity
+                : old.quantity,
+            available: mergedAvailable,
+          })
+        }
+      }
+    }
+    return Array.from(map.values())
+  }
+
+  const getCombinedPharmacyMedicines = (pharmacy) =>
+    mergeMedicineRows(
+      pharmacy.medicine_responses,
+      pharmacy.medicines_breakdown,
+      pharmacy.medicines
+    )
+
+  const sortMedsForDisplay = (medList, requestedOrder) => {
+    if (!Array.isArray(medList) || medList.length === 0) return medList
+    if (!Array.isArray(requestedOrder) || requestedOrder.length === 0) return medList
+    const orderMap = new Map(requestedOrder.map((m, i) => [String(m).toLowerCase(), i]))
+    const req = []
+    const extra = []
+    for (const m of medList) {
+      const k = medRowKey(m)
+      if (orderMap.has(k)) req.push(m)
+      else extra.push(m)
+    }
+    req.sort((a, b) => (orderMap.get(medRowKey(a)) ?? 999) - (orderMap.get(medRowKey(b)) ?? 999))
+    extra.sort((a, b) => medRowKey(a).localeCompare(medRowKey(b)))
+    return [...req, ...extra]
   }
 
   const fetchPharmacyResponses = async () => {
@@ -277,6 +441,43 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
         responses = Array.isArray(data) ? data : (data?.pharmacy_responses || data?.responses || [])
       } else return
 
+      // Merge any new_pharmacy_responses into the main list so pharmacist replies show up
+      const newReplies = Array.isArray(data?.new_pharmacy_responses)
+        ? data.new_pharmacy_responses
+        : []
+
+      if (newReplies.length > 0) {
+        const byId = new Map()
+
+        // Seed with existing responses (live inventory / previous ranking)
+        responses.forEach((p) => {
+          const key = p.pharmacy_id || p.pharmacy_name
+          byId.set(key, { ...p })
+        })
+
+        // Merge pharmacist replies in by pharmacy_id / name
+        newReplies.forEach((reply) => {
+          const key = reply.pharmacy_id || reply.pharmacy_name
+          const existing = byId.get(key) || {}
+
+          byId.set(key, {
+            ...existing,
+            ...reply,
+            medicines_breakdown: mergeMedicineRows(
+              existing.medicines_breakdown,
+              reply.medicines_breakdown
+            ),
+            medicine_responses: mergeMedicineRows(
+              existing.medicine_responses,
+              reply.medicine_responses
+            ),
+            medicines: mergeMedicineRows(existing.medicines, reply.medicines)
+          })
+        })
+
+        responses = Array.from(byId.values())
+      }
+
       // Result isolation: only display when results are for this request and user hasn't started a new search
       if (currentRequestIdRef.current !== requestIdAtStart) return
       if (resultsForRequestId && resultsForRequestId !== requestIdAtStart) return
@@ -287,8 +488,30 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
       if (count > 0) {
         const rankingPending = responses.some(p => p.ranking_pending === true)
         const requestedMeds = data?.medicine_names || data?.suggested_medicines || getMedicineNamesFromResponses(responses)
+
+        // Always refresh the main ranked card with the full list
         updatePharmacyResultsDisplay(responses, recommendation, rankingPending, false, null, requestedMeds)
-        if (!rankingPending) {
+
+        // If backend says these include new arrivals, show a small "New response(s)" bubble
+        if (data?.is_new_pharmacy_responses === true) {
+          const newList = Array.isArray(data.new_pharmacy_responses) && data.new_pharmacy_responses.length
+            ? data.new_pharmacy_responses
+            : responses
+
+          setMessages(prev => [...prev, {
+            id: genMessageId(),
+            text: data.response || `New response(s) from ${newList.length} pharmacy(ies).`,
+            sender: 'bot',
+            timestamp: new Date(),
+            type: 'new_pharmacy_responses',
+            pharmacy_responses: newList
+          }])
+        }
+
+        // Stop polling only if backend disables polling or poll_url is gone
+        const pollingDisabled = data?.polling_enabled === false
+        const hasPollUrl = !!pollConfig?.poll_url
+        if (pollingDisabled || !hasPollUrl) {
           stopPolling()
           setResultsShown(true)
         }
@@ -303,13 +526,27 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
     if (!Array.isArray(responses) || responses.length === 0) return []
     const names = new Set()
     responses.forEach((p) => {
-      const breakdown = p.medicines_breakdown || p.medicine_responses || []
+      const breakdown = getCombinedPharmacyMedicines(p)
       breakdown.forEach((item) => {
         const name = item.medicine || item.medicine_name
         if (name) names.add(typeof name === 'string' ? name : String(name))
       })
     })
     return Array.from(names)
+  }
+
+  const fmtKm = (v) => {
+    const n = Number(v)
+    return v != null && v !== '' && !Number.isNaN(n) ? n.toFixed(1) : 'N/A'
+  }
+  const fmtScore = (v) => {
+    const n = Number(v)
+    return v != null && v !== '' && !Number.isNaN(n) ? n.toFixed(1) : null
+  }
+  const fmtMedPrice = (price) => {
+    if (price == null || price === '' || price === 'N/A') return 'N/A'
+    const n = Number(price)
+    return !Number.isNaN(n) ? `$${n.toFixed(2)}` : String(price)
   }
 
   const updatePharmacyResultsDisplay = (responses, recommendation = null, rankingPending = false, fromLiveInventory = false, liveInventoryMedicine = null, requestedMedicines = null) => {
@@ -350,23 +587,29 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
       sortedPharmacies.forEach((pharmacy) => {
         const rankIcon = pharmacy.rank === 1 ? '🥇' : pharmacy.rank === 2 ? '🥈' : pharmacy.rank === 3 ? '🥉' : '📍'
         resultText += `${rankIcon} **#${pharmacy.rank || 'N/A'} - ${pharmacy.pharmacy_name}**\n`
-        resultText += `   📍 Distance: ${pharmacy.distance_km?.toFixed(1) || 'N/A'} km\n`
-        resultText += `   ⏱️ Travel Time: ${pharmacy.estimated_travel_time || 'N/A'} min\n`
+        resultText += `   📍 Distance: ${fmtKm(pharmacy.distance_km)} km\n`
+        resultText += `   ⏱️ Travel Time: ${pharmacy.estimated_travel_time ?? 'N/A'} min\n`
         resultText += `   ⏳ Preparation Time: ${pharmacy.preparation_time || 0} min\n`
-        resultText += `   🕐 Total Time: ${pharmacy.total_time_minutes || 'N/A'} min\n`
-        if (pharmacy.ranking_score !== undefined) {
-          resultText += `   ⭐ Score: ${pharmacy.ranking_score.toFixed(1)}\n`
+        const totalMin = pharmacy.total_time_minutes
+        const totalMinText = totalMin != null && !Number.isNaN(Number(totalMin)) ? `${Number(totalMin)}` : 'N/A'
+        resultText += `   🕐 Total Time: ${totalMinText} min\n`
+        const scoreStr = fmtScore(pharmacy.ranking_score)
+        if (scoreStr != null) {
+          resultText += `   ⭐ Score: ${scoreStr}\n`
         }
-        // Display medicines (medicines_breakdown or medicine_responses) — no separate Stock line
-        const medList = pharmacy.medicines_breakdown || pharmacy.medicine_responses || []
+        const medList = sortMedsForDisplay(
+          getCombinedPharmacyMedicines(pharmacy),
+          resolvedMedicines
+        )
         if (medList.length > 0) {
           resultText += `   💊 **Medicines:**\n`
           medList.forEach((medResp) => {
             const name = medResp.medicine || medResp.medicine_name || '—'
-            const statusIcon = medResp.available ? '✅' : '❌'
+            const inStock = medicineRowInStock(medResp)
+            const statusIcon = inStock ? '✅' : '❌'
             resultText += `      ${statusIcon} ${name}: `
-            if (medResp.available) {
-              resultText += `$${medResp.price || 'N/A'}`
+            if (inStock) {
+              resultText += fmtMedPrice(medResp.price)
               if (medResp.quantity != null) resultText += ` (qty ${medResp.quantity})`
             } else {
               resultText += `Not available`
@@ -407,18 +650,23 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
       resultText += `✅ **Available at ${availablePharmacies.length} pharmacy(ies):**\n\n`
       availablePharmacies.forEach((pharmacy, index) => {
         resultText += `${index + 1}. **${pharmacy.pharmacy_name}**\n`
-        resultText += `   📍 Distance: ${pharmacy.distance_km?.toFixed(1) || 'N/A'} km\n`
-        resultText += `   ⏱️ Travel Time: ${pharmacy.estimated_travel_time || 'N/A'} min\n`
-        resultText += `   💰 Price: $${pharmacy.price || 'N/A'}\n`
+        resultText += `   📍 Distance: ${fmtKm(pharmacy.distance_km)} km\n`
+        resultText += `   ⏱️ Travel Time: ${pharmacy.estimated_travel_time ?? 'N/A'} min\n`
+        resultText += `   💰 Price: ${fmtMedPrice(pharmacy.price)}\n`
         resultText += `   ⏳ Preparation Time: ${pharmacy.preparation_time || 0} min\n`
-        resultText += `   🕐 Total Time: ${pharmacy.total_time_minutes || 'N/A'} min\n`
-        const fallbackMedList = pharmacy.medicines_breakdown || pharmacy.medicine_responses || []
+        const totalMinFb = pharmacy.total_time_minutes
+        resultText += `   🕐 Total Time: ${totalMinFb != null && !Number.isNaN(Number(totalMinFb)) ? Number(totalMinFb) : 'N/A'} min\n`
+        const fallbackMedList = sortMedsForDisplay(
+          getCombinedPharmacyMedicines(pharmacy),
+          resolvedMedicines
+        )
         if (fallbackMedList.length > 0) {
           resultText += `   💊 **Medicines:**\n`
           fallbackMedList.forEach((medResp) => {
             const name = medResp.medicine || medResp.medicine_name || '—'
-            const statusIcon = medResp.available ? '✅' : '❌'
-            resultText += `      ${statusIcon} ${name}: ${medResp.available ? `$${medResp.price || 'N/A'}${medResp.quantity != null ? ` (qty ${medResp.quantity})` : ''}` : 'Not available'}\n`
+            const inStock = medicineRowInStock(medResp)
+            const statusIcon = inStock ? '✅' : '❌'
+            resultText += `      ${statusIcon} ${name}: ${inStock ? `${fmtMedPrice(medResp.price)}${medResp.quantity != null ? ` (qty ${medResp.quantity})` : ''}` : 'Not available'}\n`
           })
         }
         // Handle alternative medicines
@@ -559,11 +807,12 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
     }
   }
 
-  const handleRatePharmacy = async (pharmacyId, pharmacyName, rating, responseId = null) => {
   const openDirections = (pharmacyName, suburbOrAddress) => {
     const query = encodeURIComponent(`${pharmacyName} ${suburbOrAddress || ''}`)
     window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank')
   }
+
+  const handleRatePharmacy = async (pharmacyId, pharmacyName, rating, responseId = null) => {
     try {
       await ratePharmacy(pharmacyId, rating, responseId)
       setRatedPharmacies(prev => ({ ...prev, [pharmacyId]: rating }))
@@ -586,7 +835,7 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
       setConversationState('searching_pharmacies')
       
       const userMessage = {
-        id: messages.length + 1,
+        id: genMessageId(),
         text: text,
         sender: 'user',
         timestamp: new Date(),
@@ -630,7 +879,7 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
         : null)
 
         const botMessage = {
-          id: messages.length + 2,
+          id: genMessageId(),
           text: response.response || `Perfect! Location saved: ${text}\n\nNow searching for pharmacies near you...`,
           sender: 'bot',
           timestamp: new Date(),
@@ -643,17 +892,56 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
           const matches = !response.results_for_request_id || response.results_for_request_id === reqId
           if (response.pharmacy_responses && response.pharmacy_responses.length > 0 && matches) {
             const rp = response.pharmacy_responses
+            const rankingPending = rp.some(p => p.ranking_pending === true)
             const fromLive = !!response.from_live_inventory
-            const medName = response.live_inventory_medicine || (rp[0]?.medicines_breakdown?.[0]?.medicine) || (rp[0]?.medicine_responses?.[0]?.medicine) || (rp[0]?.medicine_name) || null
-            const requestedMeds = response.medicine_names || response.suggested_medicines || getMedicineNamesFromResponses(rp)
-            updatePharmacyResultsDisplay(rp, response.recommendation || null, rp.some(p => p.ranking_pending), fromLive, medName, requestedMeds)
-            stopPolling()
+            const medName =
+              response.live_inventory_medicine ||
+              (rp[0]?.medicines_breakdown?.[0]?.medicine) ||
+              (rp[0]?.medicine_responses?.[0]?.medicine) ||
+              (rp[0]?.medicine_name) ||
+              null
+            const requestedMeds =
+              response.medicine_names ||
+              response.suggested_medicines ||
+              getMedicineNamesFromResponses(rp)
+
+            // Always refresh full results card
+            updatePharmacyResultsDisplay(
+              rp,
+              response.recommendation || null,
+              rankingPending,
+              fromLive,
+              medName,
+              requestedMeds
+            )
+
+            // Optional new-arrivals bubble
+            if (response.is_new_pharmacy_responses === true) {
+              const newList =
+                Array.isArray(response.new_pharmacy_responses) && response.new_pharmacy_responses.length
+                  ? response.new_pharmacy_responses
+                  : rp
+
+              setMessages(prev => [
+                ...prev,
+                {
+                  id: genMessageId(),
+                  text: response.response || `New response(s) from ${newList.length} pharmacy(ies).`,
+                  sender: 'bot',
+                  timestamp: new Date(),
+                  type: 'new_pharmacy_responses',
+                  pharmacy_responses: newList
+                }
+              ])
+            }
+
+            // Do not stop polling here; fetchPharmacyResponses controls when to stop based on backend flags
           }
           // Don't manually call fetchPharmacyResponses - let polling handle it
         }
       } catch (error) {
         const errorMessage = {
-          id: messages.length + 2,
+          id: genMessageId(),
           text: "Sorry, I encountered an error processing your location. Please try again.",
           sender: 'bot',
           timestamp: new Date(),
@@ -668,7 +956,7 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
     }
 
     const userMessage = {
-      id: messages.length + 1,
+      id: genMessageId(),
       text: text,
       sender: 'user',
       timestamp: new Date(),
@@ -710,7 +998,7 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
       const askConfirmation = response.ask_medicine_confirmation  // true = show Yes/No buttons
 
       const botMessage = {
-        id: messages.length + 2,
+        id: genMessageId(),
         text: response.response,
         sender: 'bot',
         timestamp: new Date(),
@@ -742,7 +1030,7 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
       if (!askConfirmation && response.requires_location && !userLocation) {
         setConversationState('waiting_for_location')
         const locationPrompt = {
-          id: messages.length + 3,
+          id: genMessageId(),
           text: "To find pharmacies near you, I need your location. Would you like me to use your current location?",
           sender: 'bot',
           timestamp: new Date(),
@@ -754,20 +1042,58 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
         const reqId = response.medicine_request_id || response.results_for_request_id
         const matches = !response.results_for_request_id || response.results_for_request_id === reqId
         if (response.pharmacy_responses && response.pharmacy_responses.length > 0 && matches) {
-            const rp = response.pharmacy_responses
-            const rankingPending = rp.some(p => p.ranking_pending === true)
-            const fromLive = !!response.from_live_inventory
-            const medName = response.live_inventory_medicine || (rp[0]?.medicines_breakdown?.[0]?.medicine) || (rp[0]?.medicine_responses?.[0]?.medicine) || (rp[0]?.medicine_name) || null
-            const requestedMeds = response.medicine_names || response.suggested_medicines || getMedicineNamesFromResponses(rp)
-            updatePharmacyResultsDisplay(rp, response.recommendation || null, rankingPending, fromLive, medName, requestedMeds)
-            if (!rankingPending) stopPolling()
+          const rp = response.pharmacy_responses
+          const rankingPending = rp.some(p => p.ranking_pending === true)
+          const fromLive = !!response.from_live_inventory
+          const medName =
+            response.live_inventory_medicine ||
+            (rp[0]?.medicines_breakdown?.[0]?.medicine) ||
+            (rp[0]?.medicine_responses?.[0]?.medicine) ||
+            (rp[0]?.medicine_name) ||
+            null
+          const requestedMeds =
+            response.medicine_names ||
+            response.suggested_medicines ||
+            getMedicineNamesFromResponses(rp)
+
+          // Always refresh full results card
+          updatePharmacyResultsDisplay(
+            rp,
+            response.recommendation || null,
+            rankingPending,
+            fromLive,
+            medName,
+            requestedMeds
+          )
+
+          // Optional new-arrivals bubble
+          if (response.is_new_pharmacy_responses === true) {
+            const newList =
+              Array.isArray(response.new_pharmacy_responses) && response.new_pharmacy_responses.length
+                ? response.new_pharmacy_responses
+                : rp
+
+            setMessages(prev => [
+              ...prev,
+              {
+                id: genMessageId(),
+                text: response.response || `New response(s) from ${newList.length} pharmacy(ies).`,
+                sender: 'bot',
+                timestamp: new Date(),
+                type: 'new_pharmacy_responses',
+                pharmacy_responses: newList
+              }
+            ])
+          }
+
+          // Do not stop polling here; fetchPharmacyResponses controls when to stop based on backend flags
         } else if (matches) {
           setPollConfig((response.polling_enabled && response.poll_url && (response.total_responses === 0 || !response.pharmacy_responses?.length))
             ? { poll_url: response.poll_url, poll_interval_seconds: response.poll_interval_seconds ?? 10 }
             : null)
           setConversationState('searching_pharmacies')
           const searchingMessage = {
-            id: messages.length + 3,
+            id: genMessageId(),
             text: "Request has been sent. Waiting for pharmacies to respond. Responses will appear as soon as pharmacies reply.",
             sender: 'bot',
             timestamp: new Date(),
@@ -779,7 +1105,7 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
     } catch (error) {
       console.error('Error sending message:', error)
       const errorMessage = {
-        id: messages.length + 2,
+        id: genMessageId(),
         text: "Sorry, I encountered an error. Please try again.",
         sender: 'bot',
         timestamp: new Date(),
@@ -796,7 +1122,7 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
     if (!file) return
 
     const userMessage = {
-      id: messages.length + 1,
+      id: genMessageId(),
       text: `📄 Prescription uploaded: ${file.name}`,
       sender: 'user',
       timestamp: new Date(),
@@ -855,7 +1181,7 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
       }
 
       const botMessage = {
-        id: messages.length + 2,
+        id: genMessageId(),
         text: botText,
         sender: 'bot',
         timestamp: new Date(),
@@ -869,7 +1195,7 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
         setConversationState('awaiting_verification')
       } else if (!needsVerification && result.requires_location && !userLocation) {
         const locationPrompt = {
-          id: messages.length + 3,
+          id: genMessageId(),
           text: "Would you like me to use your current location?",
           sender: 'bot',
           timestamp: new Date(),
@@ -892,7 +1218,7 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
       }
       
       const errorMessage = {
-        id: messages.length + 2,
+        id: genMessageId(),
         text: errorText,
         sender: 'bot',
         timestamp: new Date(),
@@ -917,7 +1243,7 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
     } else if (action === 'No, let me describe differently') {
       setConversationState('initial')
       const prompt = {
-        id: messages.length + 1,
+        id: genMessageId(),
         text: "No problem. Please describe your symptoms again, and I'll suggest different options.",
         sender: 'bot',
         timestamp: new Date(),
@@ -933,7 +1259,7 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
       if (raw?.requires_location && !userLocation) {
         setConversationState('waiting_for_location')
         const prompt = {
-          id: messages.length + 1,
+          id: genMessageId(),
           text: "Medicines confirmed. To find pharmacies, please share your location.",
           sender: 'bot',
           timestamp: new Date(),
@@ -949,7 +1275,7 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
     } else if (action === 'Edit Manually') {
       setPendingVerification(null)
       const prompt = {
-        id: messages.length + 1,
+        id: genMessageId(),
         text: "Please type the medicine names you need (comma-separated), e.g.: Amoxicillin 500mg, Paracetamol 500mg",
         sender: 'bot',
         timestamp: new Date(),
@@ -992,8 +1318,8 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
         </div>
 
         <div className="chatbot-messages">
-          {messages.map((message) => (
-            <div key={message.id} className={`message ${message.sender}`}>
+          {messages.map((message, msgIndex) => (
+            <div key={message.clientKey ?? `msg-${msgIndex}-${message.id}`} className={`message ${message.sender}`}>
               <div className="message-avatar">
                 {message.sender === 'bot' ? (
                   <span>🤖</span>
@@ -1001,7 +1327,7 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
                   <span>👤</span>
                 )}
               </div>
-              <div className={`message-content ${message.type === 'results' ? 'results-message' : ''}`}>
+              <div className={`message-content ${message.type === 'results' ? 'results-message' : ''} ${message.type === 'new_pharmacy_responses' ? 'new-responses-message' : ''}`}>
                 <div className="msg-sender">{message.sender === 'bot' ? 'MediBot' : 'You'}</div>
                 {message.type === 'results' ? (
                   <div className="results-content">
@@ -1017,6 +1343,49 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
                       if (line.trim() === '') return <br key={index} />
                       return <p key={index}>{line}</p>
                     })}
+                  </div>
+                ) : message.type === 'new_pharmacy_responses' ? (
+                  <div className="new-pharmacy-responses-card">
+                    <div className="new-responses-label">New response(s)</div>
+                    <div className="new-responses-text">
+                      {(message.text || '').split('\n').map((line, index) => {
+                        if (line.includes('**')) {
+                          const boldText = line.match(/\*\*(.*?)\*\*/g)
+                          let formattedLine = line
+                          boldText?.forEach(bold => {
+                            formattedLine = formattedLine.replace(bold, `<strong>${bold.replace(/\*\*/g, '')}</strong>`)
+                          })
+                          return <p key={index} dangerouslySetInnerHTML={{ __html: formattedLine }} />
+                        }
+                        if (line.trim() === '') return <br key={index} />
+                        return <p key={index}>{line}</p>
+                      })}
+                    </div>
+                    {Array.isArray(message.pharmacy_responses) && message.pharmacy_responses.length > 0 && (
+                      <div className="new-responses-list">
+                        {message.pharmacy_responses.filter(p => p.medicine_available).map((pharmacy, idx) => {
+                          const medList = getCombinedPharmacyMedicines(pharmacy)
+                          return (
+                            <div key={pharmacy.pharmacy_id || pharmacy.pharmacy_name || idx} className="new-response-pharmacy-row">
+                              <span className="new-response-pharmacy-name">{pharmacy.pharmacy_name}</span>
+                              {pharmacy.distance_km != null && (
+                                <span className="new-response-pharmacy-distance"><MapPin size={12} /> {pharmacy.distance_km != null && !Number.isNaN(Number(pharmacy.distance_km)) ? `${Number(pharmacy.distance_km).toFixed(1)} km` : '—'}</span>
+                              )}
+                              {medList.length > 0 ? (
+                                <span className="new-response-medicines">
+                                  {medList
+                                    .filter((m) => medicineRowInStock(m))
+                                    .map((m) => `${m.medicine || m.medicine_name || '—'} ($${m.price || 'N/A'})`)
+                                    .join(', ')}
+                                </span>
+                              ) : (
+                                pharmacy.price != null && <span className="new-response-medicines">${pharmacy.price}</span>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <p>{message.text}</p>
@@ -1105,68 +1474,96 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
                     {reservationMessage.text}
                   </p>
                 )}
-                {pharmacyResultsDisplay.from_live_inventory && !pharmacyResultsDisplay.rankingPending && pharmacyResultsDisplay.responses?.length > 0 && (
+                {!pharmacyResultsDisplay.rankingPending && pharmacyResultsDisplay.responses?.length > 0 && (
                   <div className="pharmacy-reserve-section">
                     {Array.isArray(pharmacyResultsDisplay.requested_medicines) && pharmacyResultsDisplay.requested_medicines.length > 0 && (
                       <p className="pharmacy-reserve-medicines">💊 <strong>Medicine(s):</strong> {pharmacyResultsDisplay.requested_medicines.join(', ')}</p>
                     )}
-                    <p className="pharmacy-reserve-title">Reserve at pharmacy (pick up within 2 hours) — choose which medicine to reserve</p>
-                    {pharmacyResultsDisplay.responses.filter(p => p.medicine_available).map((pharmacy) => {
+                    <p className="pharmacy-reserve-title">
+                      {pharmacyResultsDisplay.from_live_inventory
+                        ? 'Reserve at pharmacy (pick up within 2 hours) — choose which medicine to reserve, or get directions'
+                        : 'Reserve at a pharmacy (where available) or get directions — pick up within 2 hours'}
+                    </p>
+                    {pharmacyResultsDisplay.responses.map((pharmacy) => {
                       const isReserved = reservedPharmacies.has(pharmacy.pharmacy_id)
-                      const breakdown = pharmacy.medicines_breakdown || pharmacy.medicine_responses || []
-                      const availableAtPharmacy = breakdown.filter(m => m.available === true)
+                      const breakdown = sortMedsForDisplay(
+                        getCombinedPharmacyMedicines(pharmacy),
+                        pharmacyResultsDisplay.requested_medicines
+                      )
+                      const availableAtPharmacy = breakdown.filter((m) => medicineRowInStock(m))
                       const singleMedicine = availableAtPharmacy.length === 1
                         ? availableAtPharmacy[0].medicine || availableAtPharmacy[0].medicine_name
                         : null
                       const fallbackMedicine = pharmacyResultsDisplay.live_inventory_medicine || pharmacy.medicine_name || pharmacyResultsDisplay?.requested_medicines?.[0]
+                      const canReserve =
+                        pharmacy.medicine_available !== false &&
+                        (availableAtPharmacy.length > 0 || !!fallbackMedicine || !!conversationId)
+                      const directionsHint =
+                        pharmacy.location_suburb ||
+                        pharmacy.location_address ||
+                        pharmacy.address ||
+                        ''
                       return (
                         <div key={pharmacy.pharmacy_id || pharmacy.pharmacy_name} className="pharmacy-reserve-row">
                           <div className="pharmacy-reserve-info">
                             <span className="pharmacy-reserve-name">{pharmacy.pharmacy_name}</span>
                             {pharmacy.distance_km != null && (
                               <span className="pharmacy-reserve-distance">
-                                <MapPin size={14} /> {pharmacy.distance_km.toFixed(1)} km
+                                <MapPin size={14} /> {pharmacy.distance_km != null && !Number.isNaN(Number(pharmacy.distance_km)) ? `${Number(pharmacy.distance_km).toFixed(1)} km` : '—'}
                               </span>
                             )}
                           </div>
                           {isReserved ? (
-                            <span className="pharmacy-reserved-badge">Reserved</span>
+                            <div className="pharmacy-reserve-actions">
+                              <span className="pharmacy-reserved-badge">Reserved</span>
+                              <button
+                                type="button"
+                                className="btn-directions"
+                                onClick={() => openDirections(pharmacy.pharmacy_name, directionsHint)}
+                              >
+                                📍 Get directions
+                              </button>
+                            </div>
                           ) : (
                             <div className="pharmacy-reserve-actions">
-                              {availableAtPharmacy.length > 0 ? (
-                                availableAtPharmacy.map((med) => {
-                                  const medName = med.medicine || med.medicine_name
-                                  if (!medName) return null
-                                  return (
+                              {canReserve && (
+                                <>
+                                  {availableAtPharmacy.length > 0 ? (
+                                    availableAtPharmacy.map((med) => {
+                                      const medName = med.medicine || med.medicine_name
+                                      if (!medName) return null
+                                      return (
+                                        <button
+                                          key={medName}
+                                          type="button"
+                                          className="btn-reserve btn-reserve-medicine"
+                                          onClick={() => handleReserve(pharmacy.pharmacy_id, pharmacy.pharmacy_name, medName, 1)}
+                                          title={`Reserve ${medName} at this pharmacy`}
+                                        >
+                                          Reserve {medName}
+                                        </button>
+                                      )
+                                    })
+                                  ) : (
                                     <button
-                                      key={medName}
                                       type="button"
-                                      className="btn-reserve btn-reserve-medicine"
-                                      onClick={() => handleReserve(pharmacy.pharmacy_id, pharmacy.pharmacy_name, medName, 1)}
-                                      title={`Reserve ${medName} at this pharmacy`}
+                                      className="btn-reserve"
+                                      onClick={() => handleReserve(
+                                        pharmacy.pharmacy_id,
+                                        pharmacy.pharmacy_name,
+                                        singleMedicine || fallbackMedicine,
+                                        1
+                                      )}
                                     >
-                                      Reserve {medName}
+                                      Reserve
                                     </button>
-                                  )
-                                })
-                              ) : (
-                                <button
-                                  type="button"
-                                  className="btn-reserve"
-                                  onClick={() => handleReserve(
-                                    pharmacy.pharmacy_id,
-                                    pharmacy.pharmacy_name,
-                                    singleMedicine || fallbackMedicine,
-                                    1
                                   )}
-                                >
-                                  Reserve
-                                </button>
+                                </>
                               )}
                               <button
                                 type="button"
                                 className="btn-directions"
-                                onClick={() => openDirections(pharmacy.pharmacy_name, pharmacy.location_suburb || pharmacy.location_address)}
+                                onClick={() => openDirections(pharmacy.pharmacy_name, directionsHint)}
                               >
                                 📍 Get directions
                               </button>

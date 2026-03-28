@@ -215,7 +215,7 @@
 .lp-v2 .hero-img {
   position: absolute;
   inset: 0;
-  background: url('https://images.unsplash.com/photo-1587854692152-cbe660dbde88?w=1800&q=85&fit=crop&crop=center') center center / cover no-repeat;
+  background: url('/01_medical_pharmacy_dispensary.jpg') center center / cover no-repeat;
   transform: scale(1.06);
   animation: lp-heroZoom 22s ease-in-out infinite alternate;
   will-change: transform;

@@ -845,6 +845,87 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
+/* New pharmacy responses (arrivals after initial results) */
+.message.bot .message-content.new-responses-message {
+  background: linear-gradient(135deg, #f0fdfa 0%, #ecfdf5 50%, #f8fafc 100%);
+  border: 1px solid rgba(13, 148, 136, 0.2);
+  box-shadow: 0 4px 12px rgba(13, 148, 136, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
+}
+
+.new-pharmacy-responses-card {
+  width: 100%;
+}
+
+.new-responses-label {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--teal);
+  margin-bottom: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  background: rgba(13, 148, 136, 0.1);
+  border-radius: 6px;
+}
+
+.new-responses-text {
+  font-size: 0.9375rem;
+  color: var(--text);
+  line-height: 1.6;
+  margin-bottom: 0.75rem;
+  white-space: pre-line;
+}
+
+.new-responses-text p {
+  margin: 0.35rem 0;
+}
+
+.new-responses-text strong {
+  color: var(--teal-dark);
+  font-weight: 600;
+}
+
+.new-responses-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(13, 148, 136, 0.15);
+}
+
+.new-response-pharmacy-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  padding: 0.5rem 0.65rem;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 8px;
+  border: 1px solid rgba(13, 148, 136, 0.12);
+  font-size: 0.875rem;
+}
+
+.new-response-pharmacy-name {
+  font-weight: 600;
+  color: var(--navy);
+}
+
+.new-response-pharmacy-distance {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.new-response-medicines {
+  color: var(--text);
+  font-size: 0.8125rem;
+  margin-left: auto;
+}
+
 /* ═══ Mobile: full-screen chatbot, reliable scroll ═══ */
 @media (max-width: 768px) {
   .chatbot-overlay {

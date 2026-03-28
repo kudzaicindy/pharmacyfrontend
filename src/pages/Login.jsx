@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { Stethoscope, Mail, Lock, Eye, EyeOff } from 'lucide-react'
-import { pharmacistLogin } from '../utils/api'
+import { pharmacistLogin, patientLogin, adminLogin } from '../utils/api'
 import './Auth.css'
 
 function Login() {
@@ -41,12 +41,29 @@ function Login() {
         localStorage.setItem('pharmacy_id', response.pharmacist.pharmacy.pharmacy_id)
         localStorage.setItem('pharmacist_id', response.pharmacist.pharmacist_id)
         localStorage.setItem('userRole', 'pharmacist')
-        localStorage.setItem('token', 'authenticated') // You may want to implement proper JWT tokens
+        localStorage.setItem('token', response.token || 'authenticated')
         
         navigate('/pharmacy/dashboard')
+      } else if (formData.userType === 'admin') {
+        // Admin login via backend endpoint
+        const response = await adminLogin(formData.email, formData.password)
+        localStorage.setItem('admin', JSON.stringify(response.admin || response.user || { email: formData.email }))
+        localStorage.setItem('token', response.token || response.access_token || 'authenticated')
+        localStorage.setItem('userRole', 'admin')
+        navigate('/admin/dashboard')
       } else {
-        // Patient login (mock for now)
-        localStorage.setItem('token', 'mock-token')
+        // Patient login via backend endpoint
+        const response = await patientLogin(formData.email, formData.password)
+        const patient = response.patient || response.profile || {}
+        if (response.session_id) {
+          localStorage.setItem('chatbot_session_id', response.session_id)
+        }
+        localStorage.setItem('patient', JSON.stringify({
+          ...patient,
+          email: patient.email || formData.email,
+          session_id: response.session_id || patient.session_id || null
+        }))
+        localStorage.setItem('token', response.token || response.access_token || 'authenticated')
         localStorage.setItem('userRole', 'patient')
         navigate('/patient/dashboard')
       }
@@ -83,6 +100,12 @@ function Login() {
               onClick={() => setFormData({ ...formData, userType: 'pharmacist' })}
             >
               Pharmacy
+            </button>
+            <button
+              className={`toggle-btn ${formData.userType === 'admin' ? 'active' : ''}`}
+              onClick={() => setFormData({ ...formData, userType: 'admin' })}
+            >
+              Admin
             </button>
           </div>
 
