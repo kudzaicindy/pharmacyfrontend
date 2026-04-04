@@ -52,6 +52,29 @@ const ENDPOINTS = {
   PATIENT_NOTIFICATIONS_MARK_READ: '/patient/notifications/mark-read/',
   PATIENT_PROFILE: '/patient/profile/',
   ADMIN_DASHBOARD_DATA: '/admin/dashboard/data/',
+  ADMIN_REQUEST_DETAIL: (requestId) => `/admin/requests/${requestId}/`,
+  ADMIN_PATIENT_OVERVIEW: (sessionId) => `/admin/patients/${sessionId}/overview/`,
+  ADMIN_PATIENT_PROFILE: (sessionId) => `/admin/patients/${sessionId}/profile/`,
+  ADMIN_PATIENT_SAVED: (sessionId) => `/admin/patients/${sessionId}/saved-medicines/`,
+  ADMIN_PATIENT_SAVED_CLEAR: (sessionId) => `/admin/patients/${sessionId}/saved-medicines/clear/`,
+  ADMIN_PATIENT_NOTIFS: (sessionId) => `/admin/patients/${sessionId}/notifications/`,
+  ADMIN_PATIENT_NOTIFS_CLEAR: (sessionId) => `/admin/patients/${sessionId}/notifications/clear/`,
+  ADMIN_CONTROL_CENTER: '/admin/control/center/',
+  ADMIN_REQUEST_STATUS: (requestId) => `/admin/requests/${requestId}/status/`,
+  ADMIN_RESERVATION_STATUS: (reservationId) => `/admin/reservations/${reservationId}/status/`,
+  ADMIN_PHARMACIES: '/admin/pharmacies/',
+  ADMIN_PHARMACY_UPDATE: (id) => `/admin/pharmacies/${id}/`,
+  ADMIN_PHARMACY_DELETE: (id) => `/admin/pharmacies/${id}/delete/`,
+  ADMIN_PHARMACISTS: '/admin/pharmacists/',
+  ADMIN_PHARMACIST_UPDATE: (id) => `/admin/pharmacists/${id}/`,
+  ADMIN_PHARMACIST_DELETE: (id) => `/admin/pharmacists/${id}/delete/`,
+  ADMIN_PHARMACIES_EXPORT: '/admin/pharmacies/export/',
+  ADMIN_ANALYTICS_SEARCH_VOLUME: '/admin/analytics/search-volume/',
+  ADMIN_AUDIT_LOGS: '/admin/audit/logs/',
+  ADMIN_USERS_LIST: '/admin/users/',
+  ADMIN_PATIENTS_LIST: '/admin/patients-list/',
+  ADMIN_CHATBOT_LOGS: '/admin/chatbot/logs/',
+  ADMIN_CHATBOT_LOG_DETAIL: (conversationId) => `/admin/chatbot/logs/${encodeURIComponent(String(conversationId))}/`,
 };
 
 // Generate session ID
@@ -381,6 +404,7 @@ export async function adminLogin(email, password) {
 
     const response = await fetch(loginUrl, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
       },
@@ -579,9 +603,13 @@ export async function submitPharmacyResponse(requestId, responseData) {
  *
  * Endpoint: GET /api/chatbot/pharmacist/inventory/?pharmacist_id={uuid}
  */
-export async function getPharmacistInventory(pharmacistId) {
+export async function getPharmacistInventory(pharmacistId, { credentials } = {}) {
   try {
-    const response = await fetch(`${API_BASE_URL}${ENDPOINTS.PHARMACIST_INVENTORY(pharmacistId)}`);
+    const fetchOpts = credentials === 'include' ? { credentials: 'include' } : undefined;
+    const response = await fetch(
+      `${API_BASE_URL}${ENDPOINTS.PHARMACIST_INVENTORY(pharmacistId)}`,
+      fetchOpts
+    );
 
     if (!response.ok) {
       const error = await response.json();
@@ -901,10 +929,323 @@ export async function updatePatientProfile(sessionId, conversationId, patch) {
 export async function getAdminDashboardData(limit = 50) {
   const safeLimit = Math.max(1, Math.min(200, Number(limit) || 50));
   const url = `${API_BASE_URL}${ENDPOINTS.ADMIN_DASHBOARD_DATA}?limit=${safeLimit}`;
-  const res = await fetch(url);
+  const res = await fetch(url, {
+    credentials: 'include',
+  });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || err.message || err.detail || 'Failed to fetch admin dashboard data');
+  }
+  return res.json();
+}
+
+/**
+ * Get full admin view of a single request.
+ *
+ * Returns { request, pharmacy_responses, reservations, ratings, notifications, summary }.
+ * Uses Django session auth; backend expects staff user session.
+ */
+export async function getAdminRequestDetail(requestId) {
+  if (!requestId) throw new Error('requestId is required');
+  const url = `${API_BASE_URL}${ENDPOINTS.ADMIN_REQUEST_DETAIL(requestId)}`;
+  const res = await fetch(url, {
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || err.detail || err.message || 'Failed to fetch admin request detail');
+  }
+  return res.json();
+}
+
+// ----- Admin patient control (patient dashboard CRUD) -----
+
+export async function getAdminPatientOverview(sessionId) {
+  if (!sessionId) throw new Error('sessionId is required');
+  const url = `${API_BASE_URL}${ENDPOINTS.ADMIN_PATIENT_OVERVIEW(sessionId)}`;
+  const res = await fetch(url, { credentials: 'include' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || err.detail || err.message || 'Failed to fetch patient overview');
+  }
+  return res.json();
+}
+
+export async function patchAdminPatientProfile(sessionId, patch) {
+  if (!sessionId) throw new Error('sessionId is required');
+  const url = `${API_BASE_URL}${ENDPOINTS.ADMIN_PATIENT_PROFILE(sessionId)}`;
+  const res = await fetch(url, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || err.detail || err.message || 'Failed to update patient profile');
+  }
+  return res.json();
+}
+
+export async function getAdminPatientSaved(sessionId) {
+  if (!sessionId) throw new Error('sessionId is required');
+  const url = `${API_BASE_URL}${ENDPOINTS.ADMIN_PATIENT_SAVED(sessionId)}`;
+  const res = await fetch(url, { credentials: 'include' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || err.detail || err.message || 'Failed to fetch saved medicines');
+  }
+  return res.json();
+}
+
+export async function clearAdminPatientSaved(sessionId) {
+  if (!sessionId) throw new Error('sessionId is required');
+  const url = `${API_BASE_URL}${ENDPOINTS.ADMIN_PATIENT_SAVED_CLEAR(sessionId)}`;
+  const res = await fetch(url, { method: 'DELETE', credentials: 'include' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || err.detail || err.message || 'Failed to clear saved medicines');
+  }
+  return res.json();
+}
+
+export async function getAdminPatientNotifications(sessionId) {
+  if (!sessionId) throw new Error('sessionId is required');
+  const url = `${API_BASE_URL}${ENDPOINTS.ADMIN_PATIENT_NOTIFS(sessionId)}`;
+  const res = await fetch(url, { credentials: 'include' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || err.detail || err.message || 'Failed to fetch notifications');
+  }
+  return res.json();
+}
+
+export async function clearAdminPatientNotifications(sessionId) {
+  if (!sessionId) throw new Error('sessionId is required');
+  const url = `${API_BASE_URL}${ENDPOINTS.ADMIN_PATIENT_NOTIFS_CLEAR(sessionId)}`;
+  const res = await fetch(url, { method: 'DELETE', credentials: 'include' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || err.detail || err.message || 'Failed to clear notifications');
+  }
+  return res.json();
+}
+
+// ----- Generic admin API helpers -----
+export async function adminGet(path) {
+  const res = await fetch(`${API_BASE_URL}${path}`, { credentials: 'include' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || err.detail || err.message || 'Admin GET failed');
+  }
+  return res.json();
+}
+
+export async function adminPost(path, body) {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {}),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    let msg = err.error || err.detail || err.message || 'Admin POST failed';
+    if (err.details && typeof err.details === 'object') {
+      const parts = Object.entries(err.details).map(([k, v]) => {
+        const val = Array.isArray(v) ? v.join(' ') : typeof v === 'object' ? JSON.stringify(v) : String(v);
+        return `${k}: ${val}`;
+      });
+      if (parts.length) msg = `${msg} — ${parts.join('; ')}`;
+    }
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
+export async function adminPatch(path, body) {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {}),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || err.detail || err.message || 'Admin PATCH failed');
+  }
+  return res.json();
+}
+
+export async function adminDelete(path) {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || err.detail || err.message || 'Admin DELETE failed');
+  }
+  return res.json();
+}
+
+export const getAdminControlCenter = () => adminGet(ENDPOINTS.ADMIN_CONTROL_CENTER);
+
+export const updateAdminRequestStatus = (requestId, body) =>
+  adminPatch(ENDPOINTS.ADMIN_REQUEST_STATUS(requestId), body);
+
+export const updateAdminReservationStatus = (reservationId, body) =>
+  adminPatch(ENDPOINTS.ADMIN_RESERVATION_STATUS(reservationId), body);
+
+export const createAdminPharmacy = (body) => adminPost(ENDPOINTS.ADMIN_PHARMACIES, body);
+export const updateAdminPharmacy = (id, body) => adminPatch(ENDPOINTS.ADMIN_PHARMACY_UPDATE(id), body);
+export const deleteAdminPharmacy = (id) => adminDelete(ENDPOINTS.ADMIN_PHARMACY_DELETE(id));
+
+export const createAdminPharmacist = (body) => adminPost(ENDPOINTS.ADMIN_PHARMACISTS, body);
+export const updateAdminPharmacist = (id, body) => adminPatch(ENDPOINTS.ADMIN_PHARMACIST_UPDATE(id), body);
+export const deleteAdminPharmacist = (id) => adminDelete(ENDPOINTS.ADMIN_PHARMACIST_DELETE(id));
+
+/** Download pharmacies registry CSV (session auth). */
+export async function exportAdminPharmaciesRegistry() {
+  const url = `${API_BASE_URL}${ENDPOINTS.ADMIN_PHARMACIES_EXPORT}`;
+  const res = await fetch(url, { credentials: 'include' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || err.error || err.message || 'Export failed');
+  }
+  const blob = await res.blob();
+  let filename = 'pharmacies_registry.csv';
+  const cd = res.headers.get('Content-Disposition');
+  if (cd) {
+    const m = /filename\*?=(?:UTF-8'')?["']?([^"';]+)["']?/i.exec(cd) || /filename="([^"]+)"/i.exec(cd);
+    if (m?.[1]) filename = decodeURIComponent(m[1].trim());
+  }
+  const href = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = href;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(href);
+}
+
+/**
+ * Aggregated search/request volume for admin charts.
+ * @param {number} days - window length (e.g. 7 or 30)
+ */
+export async function getAdminSearchVolumeAnalytics(days = 30) {
+  const d = Math.max(1, Math.min(90, Number(days) || 30));
+  const url = `${API_BASE_URL}${ENDPOINTS.ADMIN_ANALYTICS_SEARCH_VOLUME}?days=${d}`;
+  const res = await fetch(url, { credentials: 'include' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || err.error || err.message || 'Failed to load analytics');
+  }
+  return res.json();
+}
+
+/**
+ * Paged audit trail for staff.
+ * @param {{ page?: number, pageSize?: number }} opts
+ */
+export async function getAdminAuditLogs({ page = 1, pageSize = 50 } = {}) {
+  const p = Math.max(1, Number(page) || 1);
+  const ps = Math.max(1, Math.min(100, Number(pageSize) || 50));
+  const url = `${API_BASE_URL}${ENDPOINTS.ADMIN_AUDIT_LOGS}?page=${p}&page_size=${ps}`;
+  const res = await fetch(url, { credentials: 'include' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || err.error || err.message || 'Failed to load audit logs');
+  }
+  return res.json();
+}
+
+/** Normalize DRF-style or ad-hoc list responses */
+export function normalizeAdminPaginatedResponse(data) {
+  const results =
+    data?.results ??
+    data?.items ??
+    data?.users ??
+    data?.patients ??
+    data?.conversations ??
+    data?.logs ??
+    (Array.isArray(data?.data) ? data.data : null) ??
+    (Array.isArray(data) ? data : []);
+  const arr = Array.isArray(results) ? results : [];
+  const count = Number(data?.count ?? data?.total);
+  return { results: arr, count: Number.isFinite(count) ? count : arr.length };
+}
+
+/**
+ * Paginated Django users (staff portal accounts).
+ * @param {{ page?: number, pageSize?: number, search?: string }} opts
+ */
+export async function getAdminUsersList({ page = 1, pageSize = 25, search = '' } = {}) {
+  const p = Math.max(1, Number(page) || 1);
+  const ps = Math.max(1, Math.min(100, Number(pageSize) || 25));
+  const params = new URLSearchParams({ page: String(p), page_size: String(ps) });
+  const q = String(search || '').trim();
+  if (q) params.set('search', q);
+  const url = `${API_BASE_URL}${ENDPOINTS.ADMIN_USERS_LIST}?${params}`;
+  const res = await fetch(url, { credentials: 'include' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || err.error || err.message || 'Failed to load users');
+  }
+  return res.json();
+}
+
+/**
+ * Paginated patient session list (search matches session_id).
+ * @param {{ page?: number, pageSize?: number, search?: string }} opts
+ */
+export async function getAdminPatientsList({ page = 1, pageSize = 25, search = '' } = {}) {
+  const p = Math.max(1, Number(page) || 1);
+  const ps = Math.max(1, Math.min(100, Number(pageSize) || 25));
+  const params = new URLSearchParams({ page: String(p), page_size: String(ps) });
+  const q = String(search || '').trim();
+  if (q) params.set('search', q);
+  const url = `${API_BASE_URL}${ENDPOINTS.ADMIN_PATIENTS_LIST}?${params}`;
+  const res = await fetch(url, { credentials: 'include' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || err.error || err.message || 'Failed to load patients list');
+  }
+  return res.json();
+}
+
+/**
+ * Paginated chatbot conversation index.
+ * @param {{ page?: number, pageSize?: number, search?: string, sessionId?: string }} opts
+ */
+export async function getAdminChatbotLogs({ page = 1, pageSize = 25, search = '', sessionId = '' } = {}) {
+  const p = Math.max(1, Number(page) || 1);
+  const ps = Math.max(1, Math.min(100, Number(pageSize) || 25));
+  const params = new URLSearchParams({ page: String(p), page_size: String(ps) });
+  const q = String(search || '').trim();
+  if (q) params.set('search', q);
+  const sid = String(sessionId || '').trim();
+  if (sid) params.set('session_id', sid);
+  const url = `${API_BASE_URL}${ENDPOINTS.ADMIN_CHATBOT_LOGS}?${params}`;
+  const res = await fetch(url, { credentials: 'include' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || err.error || err.message || 'Failed to load chatbot logs');
+  }
+  return res.json();
+}
+
+/** Full transcript for one conversation (JSON body shape is backend-defined). */
+export async function getAdminChatbotConversationLogs(conversationId) {
+  if (conversationId == null || String(conversationId).trim() === '') {
+    throw new Error('conversationId is required');
+  }
+  const url = `${API_BASE_URL}${ENDPOINTS.ADMIN_CHATBOT_LOG_DETAIL(conversationId)}`;
+  const res = await fetch(url, { credentials: 'include' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || err.error || err.message || 'Failed to load conversation');
   }
   return res.json();
 }

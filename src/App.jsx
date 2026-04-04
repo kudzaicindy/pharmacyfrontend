@@ -14,6 +14,12 @@ import PatientProfile from './pages/PatientProfile'
 import PatientSettings from './pages/PatientSettings'
 import PharmacyDashboard from './pages/PharmacyDashboard'
 import AdminDashboard from './pages/AdminDashboard'
+import AdminControlCenter from './pages/AdminControlCenter'
+import AdminRequestsPage from './pages/AdminRequestsPage'
+import AdminRequestDetailPage from './pages/AdminRequestDetailPage'
+import AdminPatientControlPage from './pages/AdminPatientControlPage'
+import AdminPharmaciesPage from './pages/AdminPharmaciesPage'
+import AdminPharmacistsPage from './pages/AdminPharmacistsPage'
 import './App.css'
 
 function App() {
@@ -23,6 +29,7 @@ function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/admin/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
         <Route path="/patient" element={<PatientLayout />}>
@@ -40,6 +47,12 @@ function App() {
 
         <Route path="/pharmacy/dashboard" element={<PharmacyDashboard />} />
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
+        <Route path="/admin/control-center" element={<AdminControlCenter />} />
+        <Route path="/admin/pharmacies" element={<AdminPharmaciesPage />} />
+        <Route path="/admin/pharmacists" element={<AdminPharmacistsPage />} />
+        <Route path="/admin/requests" element={<AdminRequestsPage />} />
+        <Route path="/admin/requests/:id" element={<AdminRequestDetailPage />} />
+        <Route path="/admin/patients/:sessionId" element={<AdminPatientControlPage />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Router>

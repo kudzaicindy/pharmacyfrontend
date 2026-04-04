@@ -1363,24 +1363,35 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
                     </div>
                     {Array.isArray(message.pharmacy_responses) && message.pharmacy_responses.length > 0 && (
                       <div className="new-responses-list">
-                        {message.pharmacy_responses.filter(p => p.medicine_available).map((pharmacy, idx) => {
+                        {message.pharmacy_responses.map((pharmacy, idx) => {
                           const medList = getCombinedPharmacyMedicines(pharmacy)
+                          const inStockLine = medList
+                            .filter((m) => medicineRowInStock(m))
+                            .map((m) => `${m.medicine || m.medicine_name || '—'} ($${m.price || 'N/A'})`)
+                            .join(', ')
+                          const directionsHint =
+                            pharmacy.location_suburb ||
+                            pharmacy.location_address ||
+                            pharmacy.address ||
+                            ''
                           return (
                             <div key={pharmacy.pharmacy_id || pharmacy.pharmacy_name || idx} className="new-response-pharmacy-row">
                               <span className="new-response-pharmacy-name">{pharmacy.pharmacy_name}</span>
                               {pharmacy.distance_km != null && (
                                 <span className="new-response-pharmacy-distance"><MapPin size={12} /> {pharmacy.distance_km != null && !Number.isNaN(Number(pharmacy.distance_km)) ? `${Number(pharmacy.distance_km).toFixed(1)} km` : '—'}</span>
                               )}
-                              {medList.length > 0 ? (
-                                <span className="new-response-medicines">
-                                  {medList
-                                    .filter((m) => medicineRowInStock(m))
-                                    .map((m) => `${m.medicine || m.medicine_name || '—'} ($${m.price || 'N/A'})`)
-                                    .join(', ')}
-                                </span>
-                              ) : (
-                                pharmacy.price != null && <span className="new-response-medicines">${pharmacy.price}</span>
-                              )}
+                              {inStockLine ? (
+                                <span className="new-response-medicines">{inStockLine}</span>
+                              ) : pharmacy.price != null ? (
+                                <span className="new-response-medicines">${pharmacy.price}</span>
+                              ) : null}
+                              <button
+                                type="button"
+                                className="btn-directions new-response-directions"
+                                onClick={() => openDirections(pharmacy.pharmacy_name, directionsHint)}
+                              >
+                                Get directions
+                              </button>
                             </div>
                           )
                         })}
@@ -1474,15 +1485,17 @@ function Chatbot({ isOpen, onClose, initialQuery = '', initialMode = null }) {
                     {reservationMessage.text}
                   </p>
                 )}
-                {!pharmacyResultsDisplay.rankingPending && pharmacyResultsDisplay.responses?.length > 0 && (
+                {pharmacyResultsDisplay.responses?.length > 0 && (
                   <div className="pharmacy-reserve-section">
                     {Array.isArray(pharmacyResultsDisplay.requested_medicines) && pharmacyResultsDisplay.requested_medicines.length > 0 && (
                       <p className="pharmacy-reserve-medicines">💊 <strong>Medicine(s):</strong> {pharmacyResultsDisplay.requested_medicines.join(', ')}</p>
                     )}
                     <p className="pharmacy-reserve-title">
-                      {pharmacyResultsDisplay.from_live_inventory
-                        ? 'Reserve at pharmacy (pick up within 2 hours) — choose which medicine to reserve, or get directions'
-                        : 'Reserve at a pharmacy (where available) or get directions — pick up within 2 hours'}
+                      {pharmacyResultsDisplay.rankingPending
+                        ? 'Get directions now — ranking can still change in ~2 minutes'
+                        : pharmacyResultsDisplay.from_live_inventory
+                          ? 'Reserve at pharmacy (pick up within 2 hours) — choose which medicine to reserve, or get directions'
+                          : 'Reserve at a pharmacy (where available) or get directions — pick up within 2 hours'}
                     </p>
                     {pharmacyResultsDisplay.responses.map((pharmacy) => {
                       const isReserved = reservedPharmacies.has(pharmacy.pharmacy_id)

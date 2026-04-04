@@ -923,7 +923,13 @@
 .new-response-medicines {
   color: var(--text);
   font-size: 0.8125rem;
-  margin-left: auto;
+  flex: 1;
+  min-width: 0;
+}
+
+.new-response-directions {
+  flex-shrink: 0;
+  align-self: center;
 }
 
 /* ═══ Mobile: full-screen chatbot, reliable scroll ═══ */
