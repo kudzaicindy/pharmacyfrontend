@@ -1,39 +1,38 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { t as translate, profileLangToUi, chatLangApiCode } from '../utils/i18n'
 
 const LANGUAGES = {
   EN: { code: 'EN', name: 'English', flag: '🇬🇧' },
   SN: { code: 'SN', name: 'Shona', flag: '🇿🇼' },
-  ND: { code: 'ND', name: 'Ndebele', flag: '🇿🇼' }
+  ND: { code: 'ND', name: 'Ndebele', flag: '🇿🇼' },
 }
 
 const LanguageContext = createContext(null)
 
-export function LanguageProvider({ children }) {
-  const [language, setLanguage] = useState(() => {
+function readStoredLanguage() {
+  try {
     const stored = localStorage.getItem('healthconnect_language')
-    return stored || 'EN'
-  })
+    if (stored && LANGUAGES[stored]) return stored
+    const patient = JSON.parse(localStorage.getItem('patient') || '{}')
+    if (patient?.preferred_language) {
+      return profileLangToUi(patient.preferred_language)
+    }
+  } catch {
+    /* ignore */
+  }
+  return 'EN'
+}
+
+export function LanguageProvider({ children }) {
+  const [language, setLanguage] = useState(readStoredLanguage)
 
   useEffect(() => {
     localStorage.setItem('healthconnect_language', language)
+    const api = chatLangApiCode(language)
+    document.documentElement.lang = api
   }, [language])
 
-  const t = (key, fallback = key) => {
-    // Translation map - expand as needed
-    const translations = {
-      'Find Medicine': { EN: 'Find Medicine', SN: 'Tsvaga Mushonga', ND: 'Thola Umuthi' },
-      'Find Your Medicine': { EN: 'Find Your Medicine', SN: 'Tsvaga Mushonga Wako', ND: 'Thola Umuthi Wakho' },
-      'Upload Prescription': { EN: 'Upload Prescription', SN: 'Isa Chinyorwa', ND: 'Layisha Isiqinisekiso' },
-      'Describe Symptoms': { EN: 'Describe Symptoms', SN: 'Rondedzera Zviratidzo', ND: 'Chaza Impawu' },
-      'Search Medicine Directly': { EN: 'Search Medicine Directly', SN: 'Tsvaga Mushonga Zvakananga', ND: 'Sesha Umuthi Ngokuqondile' },
-      'Recent Searches': { EN: 'Recent Searches', SN: 'Zvitsva Zvatsvakwa', ND: 'Ukusesha Kwamuva' },
-      'Language': { EN: 'Language', SN: 'Mutauro', ND: 'Ulimi' },
-      'Home': { EN: 'Home', SN: 'Imba', ND: 'Ikhaya' }
-    }
-    const map = translations[key]
-    if (map && map[language]) return map[language]
-    return fallback
-  }
+  const t = useCallback((key, vars) => translate(language, key, vars), [language])
 
   return (
     <LanguageContext.Provider value={{ language, setLanguage, languages: LANGUAGES, t }}>

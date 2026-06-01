@@ -9,6 +9,20 @@ import {
 import AdminAppShell from '../components/AdminAppShell'
 import { useAdminShell } from '../hooks/useAdminShell'
 
+function summarizeLinkedCounts(lc) {
+  if (!lc || typeof lc !== 'object') return ''
+  return Object.entries(lc)
+    .map(([k, v]) => `${String(k).replace(/_/g, ' ')}: ${v}`)
+    .join(' · ')
+}
+
+function rowApiStatus(p) {
+  const vs = String(p?.verification_status || p?.status || '').toLowerCase()
+  if (vs === 'suspended') return 'suspended'
+  if (vs === 'pending_review' || vs === 'pending') return 'pending_review'
+  return 'verified'
+}
+
 function AdminPharmaciesPage() {
   const navigate = useNavigate()
   const shell = useAdminShell('pharmacies')
@@ -16,6 +30,7 @@ function AdminPharmaciesPage() {
   const [name, setName] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [statusSavingId, setStatusSavingId] = useState(null)
 
   const refresh = async () => {
     const data = await getAdminDashboardData(100)
@@ -42,7 +57,10 @@ function AdminPharmaciesPage() {
   return (
     <AdminAppShell {...shell}>
       <div className="admin-topbar">
-        <div><h1>Pharmacies</h1><p>Create, update, delete pharmacies.</p></div>
+        <div>
+          <h1>Pharmacies</h1>
+          <p>Create, update verification status, rename, or delete pharmacies.</p>
+        </div>
         <Link to="/admin/dashboard?tab=pharmacies" className="btn-light">
           Registry (dashboard)
         </Link>
@@ -70,33 +88,109 @@ function AdminPharmaciesPage() {
       {loading ? <div className="admin-loading">Loading...</div> : (
         <div className="table-wrap">
           <table className="admin-table">
-            <thead><tr><th>Name</th><th>Actions</th></tr></thead>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Verification</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
             <tbody>
-              {items.map((p, i) => (
-                <tr key={p.pharmacy_id || i}>
-                  <td>{p.name || p.pharmacy_name || 'N/A'}</td>
-                  <td style={{ display: 'flex', gap: 8 }}>
-                    <button type="button" className="btn-light" onClick={async () => {
-                      try {
-                        const newName = window.prompt('New pharmacy name', p.name || p.pharmacy_name || '')
-                        if (!newName) return
-                        await updateAdminPharmacy(p.pharmacy_id || p.id, { name: newName })
-                        await refresh()
-                      } catch (e) {
-                        setError(e.message || 'Update failed')
-                      }
-                    }}>Rename</button>
-                    <button type="button" className="btn-light" onClick={async () => {
-                      try {
-                        await deleteAdminPharmacy(p.pharmacy_id || p.id)
-                        await refresh()
-                      } catch (e) {
-                        setError(e.message || 'Delete failed')
-                      }
-                    }}>Delete</button>
-                  </td>
-                </tr>
-              ))}
+              {items.map((p, i) => {
+                const id = p.pharmacy_id || p.id
+                const sel = rowApiStatus(p)
+                const saving = statusSavingId === String(id)
+                return (
+                  <tr key={id || i}>
+                    <td>{p.name || p.pharmacy_name || 'N/A'}</td>
+                    <td>
+                      <select
+                        className="admin-filter-select"
+                        style={{ minWidth: '10rem', fontSize: 13 }}
+                        aria-label="Verification status"
+                        value={sel}
+                        disabled={saving || !id}
+                        onChange={async (e) => {
+                          const v = e.target.value
+                          if (v === sel || !id) return
+                          setStatusSavingId(String(id))
+                          setError('')
+                          try {
+                            const patch =
+                              v === 'suspended'
+                                ? { verification_status: 'suspended', is_active: false }
+                                : v === 'pending_review'
+                                  ? { verification_status: 'pending_review', is_active: true }
+                                  : { verification_status: 'verified', is_active: true }
+                            await updateAdminPharmacy(id, patch)
+                            await refresh()
+                          } catch (err) {
+                            setError(err.message || 'Status update failed')
+                          } finally {
+                            setStatusSavingId(null)
+                          }
+                        }}
+                      >
+                        <option value="verified">Verified</option>
+                        <option value="pending_review">Pending review</option>
+                        <option value="suspended">Suspended</option>
+                      </select>
+                    </td>
+                    <td style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="btn-light"
+                        onClick={async () => {
+                          try {
+                            const newName = window.prompt(
+                              'New pharmacy name',
+                              p.name || p.pharmacy_name || ''
+                            )
+                            if (!newName) return
+                            await updateAdminPharmacy(id, { name: newName })
+                            await refresh()
+                          } catch (e) {
+                            setError(e.message || 'Update failed')
+                          }
+                        }}
+                      >
+                        Rename
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-light"
+                        onClick={async () => {
+                          const runDelete = async (force) => {
+                            await deleteAdminPharmacy(id, force ? { force: true } : {})
+                            await refresh()
+                            setError('')
+                          }
+                          try {
+                            await runDelete(false)
+                          } catch (e) {
+                            if (e.status === 400 && e.linked_counts) {
+                              const summary = summarizeLinkedCounts(e.linked_counts)
+                              const proceed = window.confirm(
+                                `${e.message}\n\nLinked records: ${summary || '(see API)'}\n\nDelete anyway? This will cascade related data.`
+                              )
+                              if (!proceed) return
+                              try {
+                                await runDelete(true)
+                              } catch (e2) {
+                                setError(e2.message || 'Delete failed')
+                              }
+                            } else {
+                              setError(e.message || 'Delete failed')
+                            }
+                          }
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

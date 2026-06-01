@@ -1,23 +1,25 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Chatbot from '../components/Chatbot'
+import { useLanguage } from '../context/LanguageContext'
 import { getPatientDashboardStats, getPatientRequests, getPatientSessionIds } from '../utils/api'
 import '../components/PatientLayout.css'
 
 function PatientDashboard() {
   const navigate = useNavigate()
+  const { t } = useLanguage()
   const [showChatbot, setShowChatbot] = useState(false)
   const [stats, setStats] = useState(null)
   const [activeRequests, setActiveRequests] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const { patient, sessionId, conversationId } = getPatientSessionIds()
-  const name = patient?.display_name || patient?.name || 'Guest'
+  const name = patient?.display_name || patient?.name || t('patient.guest')
   const greeting = () => {
     const h = new Date().getHours()
-    if (h < 12) return 'Good morning'
-    if (h < 18) return 'Good afternoon'
-    return 'Good evening'
+    if (h < 12) return t('patient.greeting.morning')
+    if (h < 18) return t('patient.greeting.afternoon')
+    return t('patient.greeting.evening')
   }
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
 
@@ -61,12 +63,12 @@ function PatientDashboard() {
     <>
       <div className="topbar">
         <div>
-          <h1>{greeting()}, {name.split(' ')[0] || name} 👋</h1>
-          <p>{today} · Here&apos;s your medicine activity</p>
+          <h1>{greeting()}, {name.split(' ')[0] || name}</h1>
+          <p>{today} · {t('patient.dashboard.activity')}</p>
         </div>
         <div className="topbar-right">
-          <button type="button" className="btn btn-ghost" onClick={() => navigate('/patient/notifications')}>🔔 Notifications</button>
-          <button type="button" className="btn btn-teal" onClick={() => navigate('/patient/search')}>🔍 New Search</button>
+          <button type="button" className="btn btn-ghost" onClick={() => navigate('/patient/notifications')}>{t('patient.dashboard.notifications')}</button>
+          <button type="button" className="btn btn-teal" onClick={() => navigate('/patient/search')}>{t('patient.dashboard.newSearch')}</button>
         </div>
       </div>
 
@@ -90,15 +92,15 @@ function PatientDashboard() {
       <div className="stats-grid sg-4" style={{ marginBottom: 20 }}>
         <div className="sc teal fade-in" style={{ animationDelay: '.05s' }}>
           <div className="sc-icon">📋</div>
-          <div className="sc-label">Active Requests</div>
+          <div className="sc-label">{t('patient.dashboard.activeRequests')}</div>
           <div className="sc-val">{stats?.active_requests ?? 0}</div>
           <div className="sc-sub">{activeRequests.filter(r => (r.response_count || 0) > 0).length} with responses</div>
         </div>
         <div className="sc green fade-in" style={{ animationDelay: '.1s' }}>
           <div className="sc-icon">✅</div>
-          <div className="sc-label">Fulfilled</div>
+          <div className="sc-label">{t('patient.dashboard.fulfilled')}</div>
           <div className="sc-val">{stats?.fulfilled_count ?? 0}</div>
-          <div className="sc-sub">This month</div>
+          <div className="sc-sub">{t('patient.dashboard.thisMonth')}</div>
         </div>
         <div className="sc amber fade-in" style={{ animationDelay: '.15s' }}>
           <div className="sc-icon">💰</div>
@@ -117,18 +119,18 @@ function PatientDashboard() {
       <div className="quick-actions">
         <div className="qa" onClick={() => setShowChatbot(true)}>
           <div className="qa-icon">📸</div>
-          <div className="qa-label">Upload Prescription</div>
-          <div className="qa-sub">OCR reads it instantly</div>
+          <div className="qa-label">{t('patient.qa.uploadRx')}</div>
+          <div className="qa-sub">{t('patient.qa.uploadRxSub')}</div>
         </div>
         <div className="qa" onClick={() => setShowChatbot(true)}>
           <div className="qa-icon">🧠</div>
-          <div className="qa-label">Describe Symptoms</div>
-          <div className="qa-sub">AI suggests medicines</div>
+          <div className="qa-label">{t('patient.qa.symptoms')}</div>
+          <div className="qa-sub">{t('patient.qa.symptomsSub')}</div>
         </div>
         <div className="qa" onClick={() => navigate('/patient/search')}>
           <div className="qa-icon">🔍</div>
-          <div className="qa-label">Search by Name</div>
-          <div className="qa-sub">Brand or generic</div>
+          <div className="qa-label">{t('patient.qa.searchName')}</div>
+          <div className="qa-sub">{t('patient.qa.searchNameSub')}</div>
         </div>
       </div>
 
@@ -136,10 +138,10 @@ function PatientDashboard() {
         <div>
           <div className="card-header" style={{ background: 'transparent', padding: '0 0 14px', border: 'none' }}>
             <div>
-              <div className="card-title" style={{ fontSize: 15 }}>Active Requests</div>
-              <div className="card-sub">Your current medicine searches</div>
+              <div className="card-title" style={{ fontSize: 15 }}>{t('patient.dashboard.activeRequests')}</div>
+              <div className="card-sub">{t('patient.requests.current')}</div>
             </div>
-            <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => navigate('/patient/requests')}>View All</button>
+            <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => navigate('/patient/requests')}>{t('patient.dashboard.viewAll')}</button>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {activeRequests.length === 0 && !loading && (
@@ -165,8 +167,8 @@ function PatientDashboard() {
         <div>
           <div className="card-header" style={{ background: 'transparent', padding: '0 0 14px', border: 'none' }}>
             <div>
-              <div className="card-title" style={{ fontSize: 15 }}>Best Results{firstRequestWithResponses?.medicine_names?.[0] ? ` — ${firstRequestWithResponses.medicine_names[0]}` : ''}</div>
-              <div className="card-sub">AI-ranked by distance & price</div>
+              <div className="card-title" style={{ fontSize: 15 }}>{t('patient.dashboard.bestResults')}{firstRequestWithResponses?.medicine_names?.[0] ? ` — ${firstRequestWithResponses.medicine_names[0]}` : ''}</div>
+              <div className="card-sub">{t('patient.dashboard.bestSub')}</div>
             </div>
           </div>
           <div className="card">
@@ -179,16 +181,16 @@ function PatientDashboard() {
                   </div>
                 </div>
               ) : (
-                <p style={{ color: 'var(--muted)', fontSize: 13 }}>Complete a search to see ranked pharmacy results here.</p>
+                <p style={{ color: 'var(--muted)', fontSize: 13 }}>{t('patient.dashboard.noResults')}</p>
               )}
             </div>
             <div style={{ padding: '14px 16px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
-              <button type="button" className="btn btn-teal" style={{ flex: 1, justifyContent: 'center' }} onClick={() => navigate('/patient/requests')}>👁 View All Requests</button>
+              <button type="button" className="btn btn-teal" style={{ flex: 1, justifyContent: 'center' }} onClick={() => navigate('/patient/requests')}>{t('patient.dashboard.viewAllRequests')}</button>
             </div>
           </div>
           <div style={{ background: 'var(--amber-light)', border: '1px solid #fde68a', borderRadius: 'var(--radius-sm)', padding: '14px 16px', marginTop: 16 }}>
-            <div style={{ fontWeight: 700, fontSize: 13, color: '#92400e', marginBottom: 4 }}>⚠️ Drug Interaction Alert</div>
-            <div style={{ fontSize: 12.5, color: '#92400e', lineHeight: 1.6 }}>Amoxicillin may interact with Warfarin. Consult your doctor before taking both.</div>
+            <div style={{ fontWeight: 700, fontSize: 13, color: '#92400e', marginBottom: 4 }}>{t('patient.dashboard.drugAlertTitle')}</div>
+            <div style={{ fontSize: 12.5, color: '#92400e', lineHeight: 1.6 }}>{t('patient.dashboard.drugAlertBody')}</div>
           </div>
         </div>
       </div>

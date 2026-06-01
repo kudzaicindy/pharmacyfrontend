@@ -55,10 +55,20 @@ function Register() {
       }
 
       const response = await registerPharmacy(data)
-      setSuccess(`Pharmacy "${response.pharmacy.name}" registered successfully!`)
-      
+      const p = response.pharmacy || {}
+      const backendMsg = typeof response.message === 'string' ? response.message.trim() : ''
+      const pending =
+        String(p.verification_status || '').toLowerCase() === 'pending_review' ||
+        String(p.verification_status || '').toLowerCase() === 'pending'
+      setSuccess(
+        backendMsg ||
+          (pending
+            ? `Pharmacy "${p.name}" was registered. An admin must verify your pharmacy before you can receive patient requests. You can still register staff and update inventory while you wait.`
+            : `Pharmacy "${p.name}" registered successfully!`)
+      )
+
       // Store pharmacy ID for pharmacist registration
-      setPharmacistData(prev => ({ ...prev, pharmacy_id: response.pharmacy.pharmacy_id }))
+      setPharmacistData((prev) => ({ ...prev, pharmacy_id: p.pharmacy_id }))
       
       // Move to pharmacist registration step
       setTimeout(() => {

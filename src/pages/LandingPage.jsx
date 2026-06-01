@@ -1,19 +1,31 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link } from 'react-router-dom'
-import { Search, MessageSquare, Menu, X } from 'lucide-react'
+import { Link, useLocation } from 'react-router-dom'
+import { Search, MessageSquare, Menu, X, ChevronDown, Building2, Shield, MapPin } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import Chatbot from '../components/Chatbot'
+import {
+  getPickupSnapshot,
+  hasActivePickup,
+  getPrimaryActiveReservation,
+  formatReservationStatusForPatient,
+  refreshPickupReservationsFromBackend,
+} from '../utils/patientPickupStorage'
 import './LandingPage.css'
 
 const HERO_PILLS = ['Amoxicillin', 'Metformin', 'Insulin', 'Ibuprofen', 'Vitamin C']
 
 function LandingPage() {
+  const location = useLocation()
   const { language, setLanguage, languages, t } = useLanguage()
   const [showChatbot, setShowChatbot] = useState(false)
+  const [resumeChatSession, setResumeChatSession] = useState(false)
+  const [pickupBanner, setPickupBanner] = useState(() => getPickupSnapshot())
   const [searchInput, setSearchInput] = useState('')
   const [initialQuery, setInitialQuery] = useState('')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [getStartedOpen, setGetStartedOpen] = useState(false)
   const navRef = useRef(null)
+  const getStartedRef = useRef(null)
 
   useEffect(() => {
     const handleScroll = () => {
@@ -24,37 +36,162 @@ function LandingPage() {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
+  useEffect(() => {
+    if (!getStartedOpen) return undefined
+    const close = (e) => {
+      if (getStartedRef.current && !getStartedRef.current.contains(e.target)) {
+        setGetStartedOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [getStartedOpen])
+
+  useEffect(() => {
+    if (location.state?.openChatbot) {
+      setResumeChatSession(true)
+      setShowChatbot(true)
+      window.history.replaceState({}, document.title)
+    }
+  }, [location.state])
+
+  useEffect(() => {
+    if (!showChatbot) {
+      setPickupBanner(getPickupSnapshot())
+    }
+  }, [showChatbot])
+
+  useEffect(() => {
+    const snap = getPickupSnapshot()
+    if (!snap?.request_id) return undefined
+    let cancelled = false
+    refreshPickupReservationsFromBackend(snap.request_id).then((merged) => {
+      if (!cancelled && merged) setPickupBanner(merged)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const activeReservation = getPrimaryActiveReservation(pickupBanner)
+  const showContinueBanner =
+    Boolean(activeReservation?.pharmacy_name || pickupBanner?.pharmacy_name || pickupBanner?.request_id) ||
+    hasActivePickup()
+
   const openSearch = (query = '') => {
+    setResumeChatSession(false)
     setInitialQuery(query || searchInput.trim())
     setShowChatbot(true)
   }
 
+  const openContinueSearch = () => {
+    setResumeChatSession(true)
+    setShowChatbot(true)
+  }
+
+  const closeChatbot = () => {
+    setShowChatbot(false)
+    setResumeChatSession(false)
+  }
+
   return (
     <div className="landing-page lp-v2">
+      {showContinueBanner && (
+        <button
+          type="button"
+          className="lp-pickup-banner"
+          onClick={openContinueSearch}
+          aria-label="Continue your medicine search in chat"
+        >
+          <MapPin size={18} aria-hidden className="lp-pickup-banner-icon" />
+          <div className="lp-pickup-banner-text">
+            <strong>Continue your search</strong>
+            <span>
+              {activeReservation?.pharmacy_name ? (
+                <>
+                  Reserved at <strong>{activeReservation.pharmacy_name}</strong>
+                  {activeReservation.medicine_name ? ` · ${activeReservation.medicine_name}` : ''}
+                  {' — '}
+                  {formatReservationStatusForPatient(activeReservation.status)}
+                </>
+              ) : (
+                <>
+                  {pickupBanner?.medicines?.length
+                    ? `Pick up ${pickupBanner.medicines.join(', ')}`
+                    : 'Your medicine request'}
+                  {pickupBanner?.pharmacy_name
+                    ? ` at ${pickupBanner.pharmacy_name}`
+                    : ' — open chat to see pharmacies'}
+                </>
+              )}
+            </span>
+          </div>
+          <span className="lp-pickup-banner-btn">{t('landing.pickup.openChat')}</span>
+        </button>
+      )}
       <nav className="lp-nav" id="nav" ref={navRef}>
         <div className="logo">Medi<span>Connect</span></div>
         <ul className="nav-links">
-          <li><a href="#how">How It Works</a></li>
-          <li><a href="#features">Features</a></li>
-          <li><a href="#pharmacies">Pharmacies</a></li>
+          <li><a href="#how">{t('landing.nav.how')}</a></li>
+          <li><a href="#features">{t('landing.nav.features')}</a></li>
+          <li><a href="#pharmacies">{t('landing.nav.pharmacies')}</a></li>
         </ul>
         <div className="nav-right">
           <div className="nav-lang">
-            <label className="nav-lang-label" htmlFor="lp-lang-select">{t('Language')}:</label>
+            <label className="nav-lang-label" htmlFor="lp-lang-select">{t('common.language')}:</label>
             <select
               id="lp-lang-select"
               className="nav-lang-select"
               value={language}
               onChange={(e) => setLanguage(e.target.value)}
-              aria-label={t('Language')}
+              aria-label={t('common.language')}
             >
               {Object.entries(languages).map(([code, { name, flag }]) => (
                 <option key={code} value={code}>{flag} {name}</option>
               ))}
             </select>
           </div>
-          <Link to="/login" className="nav-ghost">Sign In</Link>
-          <Link to="/register" className="nav-solid-btn">Get Started →</Link>
+          <Link to="/login" className="nav-ghost">{t('landing.signIn')}</Link>
+          <div className="lp-get-started" ref={getStartedRef}>
+            <button
+              type="button"
+              className="nav-solid-btn lp-get-started-trigger"
+              onClick={() => setGetStartedOpen((o) => !o)}
+              aria-expanded={getStartedOpen}
+              aria-haspopup="true"
+            >
+              {t('landing.getStarted')}
+              <ChevronDown size={16} className={`lp-get-started-chevron ${getStartedOpen ? 'open' : ''}`} aria-hidden />
+            </button>
+            {getStartedOpen && (
+              <div className="lp-get-started-menu" role="menu">
+                <Link
+                  to="/pharmacy/login"
+                  className="lp-get-started-item"
+                  role="menuitem"
+                  onClick={() => setGetStartedOpen(false)}
+                >
+                  <Building2 size={18} aria-hidden />
+                  <span>
+                    <strong>{t('landing.pharmacyLogin')}</strong>
+                    <small>{t('landing.pharmacyLoginSub')}</small>
+                  </span>
+                </Link>
+                <Link
+                  to="/admin/login"
+                  className="lp-get-started-item"
+                  role="menuitem"
+                  onClick={() => setGetStartedOpen(false)}
+                >
+                  <Shield size={18} aria-hidden />
+                  <span>
+                    <strong>{t('landing.adminLogin')}</strong>
+                    <small>{t('landing.adminLoginSub')}</small>
+                  </span>
+                </Link>
+              </div>
+            )}
+          </div>
         </div>
         <button
           type="button"
@@ -88,7 +225,7 @@ function LandingPage() {
               className="nav-lang-select"
               value={language}
               onChange={(e) => setLanguage(e.target.value)}
-              aria-label={t('Language')}
+              aria-label={t('common.language')}
             >
               {Object.entries(languages).map(([code, { name, flag }]) => (
                 <option key={code} value={code}>{flag} {name}</option>
@@ -96,7 +233,13 @@ function LandingPage() {
             </select>
           </div>
           <Link to="/login" className="nav-ghost" onClick={() => setMobileMenuOpen(false)}>Sign In</Link>
-          <Link to="/register" className="nav-solid-btn" onClick={() => setMobileMenuOpen(false)}>Get Started →</Link>
+          <p className="lp-mobile-get-started-label">Get Started</p>
+          <Link to="/pharmacy/login" className="nav-solid-btn lp-mobile-login-btn" onClick={() => setMobileMenuOpen(false)}>
+            Pharmacy Login
+          </Link>
+          <Link to="/admin/login" className="nav-ghost lp-mobile-login-btn" onClick={() => setMobileMenuOpen(false)}>
+            Admin Login
+          </Link>
         </div>
       </div>
 
@@ -142,31 +285,31 @@ function LandingPage() {
         <div className="hero-content">
           <div className="badge">
             <span className="badge-dot" />
-            <span>AI-Powered · Zimbabwe Medicine Platform</span>
+            <span>{t('landing.badge')}</span>
           </div>
           <h1>
-            <span className="h1-line">Find Your</span>
-            <span className="h1-line"><em>Medicine,</em></span>
-            <span className="h1-line"><span className="underline-wrap">Instantly.</span></span>
+            <span className="h1-line">{t('landing.hero.line1')}</span>
+            <span className="h1-line"><em>{t('landing.hero.line2')}</em></span>
+            <span className="h1-line"><span className="underline-wrap">{t('landing.hero.line3')}</span></span>
           </h1>
           <p className="hero-desc">
-            MediConnect connects patients with pharmacies across Zimbabwe in seconds. Search any medicine, check real-time stock, and get there fast — powered by AI.
+            {t('landing.hero.desc')}
           </p>
 
           <div className="search-box">
             <Search size={18} strokeWidth={2} className="search-icon" />
             <input
               type="text"
-              placeholder="Search medicine, e.g. Paracetamol 500mg…"
+              placeholder={t('landing.searchPlaceholder')}
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && openSearch()}
             />
-            <button type="button" className="s-btn" onClick={() => openSearch()}>Search →</button>
+            <button type="button" className="s-btn" onClick={() => openSearch()}>{t('landing.searchBtn')}</button>
           </div>
 
           <div className="pills-row">
-            <span className="pills-label">Try:</span>
+            <span className="pills-label">{t('landing.try')}</span>
             {HERO_PILLS.map((name) => (
               <button key={name} type="button" className="pill" onClick={() => openSearch(name)}>{name}</button>
             ))}
@@ -174,11 +317,11 @@ function LandingPage() {
 
           <div className="stats">
             <div className="stat">
-              <div className="stat-n">200<sup>+</sup></div>
+              <div className="stat-n">5<sup>+</sup></div>
               <div className="stat-l">Pharmacies</div>
             </div>
             <div className="stat">
-              <div className="stat-n">5k<sup>+</sup></div>
+              <div className="stat-n">50<sup>+</sup></div>
               <div className="stat-l">Medicines</div>
             </div>
             <div className="stat">
@@ -334,12 +477,19 @@ function LandingPage() {
         </div>
       </footer>
 
-      <button type="button" className="lp-chatbot-float" onClick={() => setShowChatbot(true)} title="Chat with MediBot">
-        <MessageSquare size={24} />
+      <button type="button" className="lp-chatbot-float" onClick={() => setShowChatbot(true)} title={t('landing.chatTitle')}>
+        <MessageSquare size={20} strokeWidth={2} aria-hidden />
         <span className="lp-chatbot-pulse" />
       </button>
 
-      <Chatbot key={initialQuery || 'chat'} isOpen={showChatbot} onClose={() => setShowChatbot(false)} initialQuery={initialQuery} initialMode="direct" />
+      <Chatbot
+        key={initialQuery || 'chat'}
+        isOpen={showChatbot}
+        onClose={closeChatbot}
+        initialQuery={initialQuery}
+        initialMode="direct"
+        resumeSession={resumeChatSession}
+      />
     </div>
   )
 }

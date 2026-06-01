@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap');
+/* Fonts: index.html / src/index.css :root */
 
 .admin-dashboard {
   /* Main content: light clinical UI. Sidebar: same navy shell as PharmacyDashboard. */
@@ -25,11 +25,18 @@
   --radius-sm: 8px;
 }
 
+/* MediBot portal shell: full-width dark canvas (sidebar + main) */
+.admin-dashboard--medibot {
+  background: #0f172a;
+}
+
 .admin-dashboard {
   display: flex;
   min-height: 100vh;
   background: var(--bg);
-  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.45;
   color: var(--text);
 }
 
@@ -53,7 +60,7 @@
 }
 
 .admin-mobile-logo {
-  font-family: 'Syne', sans-serif;
+  font-family: var(--font-serif);
   font-size: 18px;
   font-weight: 800;
   color: #fff;
@@ -99,22 +106,22 @@
   left: 0;
   top: 0;
   bottom: 0;
-  width: 248px;
+  width: 220px;
   background: var(--navy);
   border-right: 1px solid var(--sidebar-edge);
-  padding: 28px 0 18px;
+  padding: 18px 0 14px;
   display: flex;
   flex-direction: column;
   z-index: 100;
 }
 
 .admin-sb-brand {
-  padding: 0 24px 24px;
+  padding: 0 18px 16px;
   border-bottom: 1px solid var(--sidebar-edge);
 }
 
 .admin-sb-logo {
-  font-family: 'Syne', sans-serif;
+  font-family: var(--font-serif);
   font-size: 18px;
   font-weight: 800;
   color: #fff;
@@ -133,7 +140,7 @@
 }
 
 .admin-sb-profile {
-  padding: 18px 24px;
+  padding: 12px 18px;
   border-bottom: 1px solid rgba(255,255,255,.08);
   display: flex;
   align-items: center;
@@ -162,7 +169,7 @@
   border-radius: 50%;
   font-size: 12px;
   font-weight: 800;
-  font-family: 'Syne', sans-serif;
+  font-family: var(--font-serif);
   letter-spacing: 0.02em;
   background: var(--teal);
   color: #fff;
@@ -183,7 +190,7 @@
 }
 
 .admin-sb-section {
-  padding: 16px 24px 6px;
+  padding: 12px 18px 4px;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 1.2px;
@@ -215,7 +222,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 9px 24px;
+  padding: 8px 18px;
   border-radius: 0;
   color: var(--sidebar-text);
   font-size: 13.5px;
@@ -225,7 +232,7 @@
   background: none;
   width: 100%;
   text-align: left;
-  font-family: 'DM Sans', sans-serif;
+  font-family: var(--font-sans);
   transition: background 0.15s ease, color 0.15s ease;
 }
 
@@ -305,7 +312,7 @@ a.admin-sb-item {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s;
-  font-family: 'DM Sans', sans-serif;
+  font-family: var(--font-sans);
 }
 
 .logout-btn:hover {
@@ -314,8 +321,8 @@ a.admin-sb-item {
 }
 
 .admin-main {
-  margin-left: 248px;
-  padding: 22px 24px 26px;
+  margin-left: 220px;
+  padding: 14px 18px 18px;
   min-height: 100vh;
   flex: 1;
 }
@@ -330,11 +337,11 @@ a.admin-sb-item {
 
 .admin-topbar h1 {
   margin: 0 0 2px;
-  font-family: 'Syne', sans-serif;
-  font-size: 24px;
+  font-family: var(--font-serif);
+  font-size: 20px;
   font-weight: 700;
-  letter-spacing: -0.6px;
-  line-height: 1.15;
+  letter-spacing: -0.04em;
+  line-height: 1.2;
 }
 
 .admin-topbar p {
@@ -850,7 +857,7 @@ a.admin-sb-item {
 
 .admin-transcript-drawer-title {
   margin: 0;
-  font-family: 'Syne', sans-serif;
+  font-family: var(--font-serif);
   font-size: 17px;
   font-weight: 700;
   letter-spacing: -0.3px;
@@ -1039,6 +1046,113 @@ a.admin-sb-item {
   margin-bottom: 14px;
 }
 
+/* Overview: dense layout + clear section bands */
+.admin-overview-layout--compact {
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.admin-overview-layout--compact .admin-overview-mid {
+  gap: 10px;
+}
+
+.admin-overview-layout--compact .admin-overview-bottom {
+  gap: 6px;
+}
+
+.admin-overview-layout--compact .admin-overview-mid .admin-panel,
+.admin-overview-layout--compact .admin-overview-bottom .admin-panel {
+  padding: 7px 9px;
+  margin-bottom: 0;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.admin-overview-layout--compact .admin-panel-head {
+  margin-bottom: 4px;
+}
+
+.admin-overview-layout--compact .admin-panel-head h2 {
+  font-size: 12px;
+  letter-spacing: -0.1px;
+}
+
+.admin-overview-layout--compact .admin-segment-toggle button {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+.admin-overview-layout--compact .admin-alert-row {
+  padding: 6px 0;
+  gap: 8px;
+}
+
+.admin-overview-layout--compact .admin-alert-title {
+  font-size: 12px;
+}
+
+.admin-overview-layout--compact .admin-alert-meta {
+  font-size: 10px;
+}
+
+.admin-overview-layout--compact .admin-performance-row {
+  padding: 5px 0;
+}
+
+.admin-overview-layout--compact .admin-performance-name {
+  font-size: 12px;
+}
+
+.admin-overview-layout--compact .admin-performance-loc {
+  font-size: 10px;
+}
+
+.admin-overview-layout--compact .admin-performance-pct {
+  font-size: 12px;
+}
+
+.admin-overview-layout--compact .admin-search-trend-stack--compact {
+  margin-top: 2px;
+}
+
+.admin-overview-layout--compact .admin-trend-wrap--compact {
+  min-height: 72px;
+  padding: 2px 4px 0;
+  border-radius: 8px;
+}
+
+.admin-overview-layout--compact .admin-trend-wrap--compact .admin-trend-svg {
+  max-height: 72px;
+  min-height: 56px;
+}
+
+.admin-overview-layout--compact .admin-top-medicines-title {
+  font-size: 10px;
+  margin-bottom: 4px;
+}
+
+.admin-overview-layout--compact .admin-top-medicine-row {
+  padding: 4px 0;
+  font-size: 11px;
+}
+
+.admin-overview-layout--compact .admin-search-volume-rankings {
+  margin-top: 8px;
+  padding-top: 8px;
+  gap: 0 12px;
+}
+
+.admin-overview-layout--compact .admin-table-compact-wrap .admin-table th,
+.admin-overview-layout--compact .admin-table-compact-wrap .admin-table td {
+  padding: 6px 8px;
+  font-size: 11px;
+}
+
+.admin-overview-layout--compact .admin-activity-empty {
+  padding: 12px 10px;
+  font-size: 11px;
+}
+
 .admin-stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -1079,7 +1193,7 @@ a.admin-sb-item {
 
 .admin-hero-panel h2 {
   margin: 0;
-  font-family: 'Syne', sans-serif;
+  font-family: var(--font-serif);
   font-size: 20px;
   letter-spacing: -0.3px;
 }
@@ -1225,12 +1339,14 @@ a.admin-sb-item {
   border-radius: 10px;
 }
 
-.admin-trend-wrap--compact + .admin-top-medicines {
+.admin-trend-wrap--compact + .admin-top-medicines,
+.admin-trend-wrap--compact + .admin-search-volume-rankings {
   margin-top: 10px;
   padding-top: 10px;
 }
 
-.admin-trend-wrap--compact ~ .admin-top-medicines .admin-top-medicines-title {
+.admin-trend-wrap--compact ~ .admin-top-medicines .admin-top-medicines-title,
+.admin-trend-wrap--compact ~ .admin-search-volume-rankings .admin-top-medicines-title {
   margin-bottom: 8px;
   font-size: 10px;
 }
@@ -1303,6 +1419,19 @@ a.admin-sb-item {
   border-radius: 12px;
 }
 
+.admin-registry-table .admin-registry-status-select {
+  min-width: 9.5rem;
+  max-width: 100%;
+  font-size: 12px;
+  padding: 6px 8px;
+}
+
+.admin-registry-status-saving {
+  display: block;
+  font-size: 11px;
+  margin-top: 4px;
+}
+
 .admin-registry-table th,
 .admin-registry-table td {
   padding: 11px 12px;
@@ -1365,8 +1494,8 @@ a.admin-sb-item {
 
 .admin-overview-mid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
-  gap: 14px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
   align-items: stretch;
 }
 
@@ -1428,13 +1557,13 @@ a.admin-sb-item {
 .admin-trend-y-label {
   fill: var(--muted);
   font-size: 10px;
-  font-family: 'DM Sans', sans-serif;
+  font-family: var(--font-sans);
 }
 
 .admin-trend-x-label {
   fill: var(--muted);
   font-size: 9px;
-  font-family: 'DM Sans', sans-serif;
+  font-family: var(--font-sans);
 }
 
 .admin-trend-line {
@@ -1446,6 +1575,37 @@ a.admin-sb-item {
   fill: #fff;
   stroke: var(--chart-line);
   stroke-width: 2;
+}
+
+.admin-search-volume-rankings {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 20px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 900px) {
+  .admin-search-volume-rankings {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-search-volume-rankings .admin-top-regions {
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+    margin-top: 4px;
+  }
+}
+
+.admin-search-volume-rankings .admin-top-medicines {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+.admin-top-regions .admin-top-region-bar-fill {
+  background: linear-gradient(90deg, #6366f1 0%, #818cf8 100%);
 }
 
 .admin-top-medicines {
@@ -1690,6 +1850,65 @@ a.admin-sb-item {
   line-height: 1.4;
 }
 
+.admin-alert-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.admin-alert-chip {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.2;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.admin-alert-detail {
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.92;
+  margin-top: 6px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.admin-alert-recommendation {
+  font-size: 11px;
+  color: var(--text);
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--muted) 8%, transparent);
+  border: 1px solid var(--border);
+  line-height: 1.4;
+}
+
+.admin-alert-recommendation::before {
+  content: '→ ';
+  font-weight: 600;
+  opacity: 0.75;
+}
+
+.admin-alert-link {
+  font-weight: 600;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.admin-alert-link:hover {
+  opacity: 0.85;
+}
+
 .admin-overview-bottom {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(260px, 400px);
@@ -1878,7 +2097,7 @@ a.admin-sb-item {
 
 .pharmacy-card-title {
   margin: 0;
-  font-family: 'Syne', sans-serif;
+  font-family: var(--font-serif);
   font-size: 18px;
   letter-spacing: -0.2px;
 }
@@ -2332,7 +2551,7 @@ a.admin-sb-item {
 
 .admin-panel h2 {
   margin: 0;
-  font-family: 'Syne', sans-serif;
+  font-family: var(--font-serif);
   font-size: 17px;
   letter-spacing: -0.2px;
   color: var(--text);
@@ -2459,11 +2678,11 @@ a.admin-sb-item {
 
 @media (max-width: 960px) {
   .admin-sidebar {
-    width: 248px;
+    width: 220px;
   }
   .admin-main {
-    margin-left: 248px;
-    padding: 20px 16px 18px;
+    margin-left: 220px;
+    padding: 14px 16px 16px;
   }
 }
 
@@ -2494,8 +2713,3689 @@ a.admin-sb-item {
     padding: 56px 1rem 1rem;
   }
 
+  .admin-dashboard--medibot .admin-main--medibot {
+    padding: 52px 12px 14px;
+  }
+
+  .admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot {
+    padding: 48px 10px 12px;
+  }
+
   .admin-hero-panel {
     flex-direction: column;
     align-items: flex-start;
+  }
+}
+
+/* —— MediBot admin portal: layout only; main area stays light (clinical UI) —— */
+.admin-dashboard--medibot .admin-sidebar--medibot {
+  width: 220px;
+  padding: 14px 0 12px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot {
+  margin-left: 220px;
+  padding: 16px 18px 22px;
+}
+
+.admin-sb-brand--medibot {
+  padding: 0 14px 12px;
+  border-bottom: 1px solid var(--sidebar-edge);
+}
+
+.admin-sb-brand-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.admin-sb-medibot-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(45, 212, 191, 0.15);
+  color: var(--teal-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.admin-sb-logo--medibot {
+  font-size: 16px;
+  line-height: 1.15;
+}
+
+.admin-sb-version--medibot {
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  margin-top: 2px;
+  color: rgba(255, 255, 255, 0.38);
+}
+
+.admin-sb-status-card {
+  margin: 10px 12px 12px;
+  padding: 10px 10px 8px;
+  border-radius: var(--radius-sm);
+  background: rgba(15, 118, 110, 0.35);
+  border: 1px solid rgba(45, 212, 191, 0.22);
+}
+
+.admin-sb-status-card--warn {
+  background: rgba(180, 83, 9, 0.25);
+  border-color: rgba(251, 191, 36, 0.35);
+}
+
+.admin-sb-status-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.92);
+  margin-bottom: 8px;
+}
+
+.admin-sb-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.35);
+}
+
+.admin-sb-status-dot--warn {
+  background: #fbbf24;
+  box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.35);
+}
+
+.admin-sb-status-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 8px;
+}
+
+.admin-sb-status-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.admin-sb-status-k {
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.admin-sb-status-v {
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-sb-status-v--alert {
+  color: #fde68a;
+}
+
+.admin-sb-nav--medibot .admin-sb-section--medibot {
+  padding: 10px 14px 4px;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.32);
+}
+
+.admin-sb-nav--medibot .admin-sb-item {
+  padding: 6px 14px;
+  font-size: 12px;
+}
+
+.admin-sb-footer--medibot {
+  padding: 12px 14px 0;
+}
+
+.admin-sb-avatar--medibot {
+  background: rgba(56, 189, 248, 0.25);
+  color: #e0f2fe;
+}
+
+.logout-btn--medibot {
+  margin-top: 8px;
+  padding: 8px 14px;
+  font-size: 12px;
+}
+
+.admin-mobile-logo--medibot span {
+  color: var(--teal-accent);
+}
+
+.admin-topbar--medibot h1 {
+  font-size: 1.5rem;
+}
+
+.admin-topbar-actions--medibot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.admin-topbar-clock {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.admin-btn-export {
+  font-size: 13px;
+}
+
+.admin-btn-alerts {
+  border: none;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+  color: #fff;
+  box-shadow: 0 2px 10px rgba(13, 148, 136, 0.35);
+}
+
+.admin-btn-alerts:hover {
+  filter: brightness(1.06);
+}
+
+/* MediBot main: compact panels/tables on non-overview tabs (parity with overview) */
+.admin-dashboard--medibot .admin-main--medibot .admin-topbar {
+  margin-bottom: 10px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .admin-topbar--medibot h1 {
+  font-size: 1.25rem;
+  letter-spacing: -0.4px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .admin-topbar p {
+  font-size: 12px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .admin-topbar-actions--medibot {
+  gap: 8px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .admin-topbar-clock {
+  font-size: 12px;
+  padding: 5px 10px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .admin-panel {
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.admin-dashboard--medibot .admin-main--medibot .admin-panel-head {
+  margin-bottom: 4px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .admin-panel h2 {
+  font-size: 12px;
+  letter-spacing: -0.1px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .admin-registry-card.admin-panel {
+  padding: 8px 10px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .admin-stats-grid {
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .admin-stats-grid--kpi {
+  gap: 8px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .admin-stat-card {
+  padding: 8px 10px;
+  border-radius: 10px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .admin-stat-card .label {
+  font-size: 9px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .admin-stat-card h3 {
+  font-size: 17px;
+  margin-top: 2px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .admin-stat-card .sub {
+  font-size: 8px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .admin-stat-trend {
+  margin-top: 4px;
+  font-size: 9px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .admin-hero-panel {
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border-radius: 12px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .admin-hero-panel h2 {
+  font-size: 17px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .admin-hero-panel p {
+  font-size: 11px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .table-wrap {
+  border-radius: 10px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .admin-table th,
+.admin-dashboard--medibot .admin-main--medibot .admin-table td {
+  padding: 6px 8px;
+  font-size: 11px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .admin-table th {
+  font-size: 9px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .admin-registry-metrics {
+  gap: 8px 12px;
+  margin-bottom: 10px;
+  padding: 2px 0 0;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .admin-registry-metric-value {
+  font-size: 22px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .admin-registry-metric-label {
+  font-size: 10px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .admin-registry-filters {
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .admin-filter-input,
+.admin-dashboard--medibot .admin-main--medibot .admin-filter-select {
+  height: 32px;
+  font-size: 11px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .admin-users-page {
+  gap: 8px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .admin-users-hint {
+  margin: 0 0 6px;
+  font-size: 11px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .admin-loading {
+  padding: 10px;
+  font-size: 11px;
+  border-radius: 10px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .admin-error {
+  padding: 8px 10px;
+  font-size: 12px;
+  border-radius: 10px;
+  margin-bottom: 8px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .pharmacy-card-title {
+  font-size: 16px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .pharmacy-list-row {
+  padding: 6px 0;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .pharmacy-card-meta {
+  padding: 6px 8px;
+  font-size: 11px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .priority-queue-grid {
+  gap: 8px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .priority-queue-card {
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .admin-request-card {
+  padding: 10px;
+  border-radius: 12px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .admin-catalogue-filters {
+  gap: 8px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .medibot-tab-page {
+  max-width: 100%;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .medibot-tab-lead {
+  margin: 0 0 8px;
+  font-size: 12px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .medibot-tab-toolbar {
+  margin-bottom: 8px;
+  gap: 8px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .medibot-queue-count {
+  font-size: 12px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .medibot-heatmap-grid {
+  gap: 8px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .medibot-heatmap-cell {
+  padding: 10px 10px;
+  min-height: 96px;
+  border-radius: 10px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .medibot-heatmap-cell h3 {
+  margin: 4px 0 2px;
+  font-size: 12px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .medibot-heatmap-count {
+  font-size: 18px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .medibot-vq-grid {
+  gap: 8px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .medibot-vq-card {
+  padding: 10px;
+  border-radius: 10px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .medibot-vq-dl {
+  margin: 6px 0 0;
+  gap: 6px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .medibot-vq-dl dd {
+  font-size: 12px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .medibot-vq-note {
+  margin-top: 6px;
+  font-size: 10px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .medibot-watch-list {
+  gap: 8px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .medibot-watch-card {
+  padding: 8px 10px;
+  gap: 10px;
+  border-radius: 10px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .medibot-equity-grid {
+  gap: 10px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .medibot-equity-card {
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .medibot-equity-card h3 {
+  margin: 0 0 6px;
+  font-size: 12px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .medibot-gov-list {
+  gap: 6px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .medibot-gov-card {
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .medibot-alert-strip {
+  margin-top: 8px;
+  gap: 6px;
+}
+
+.admin-dashboard--medibot .admin-main--medibot .medibot-alert-chip {
+  font-size: 10px;
+  padding: 4px 8px;
+}
+
+/* MediBot overview sections */
+.medibot-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  margin-bottom: 20px;
+}
+
+.medibot-overview--structured {
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.medibot-overview--structured .medibot-section {
+  padding: 7px 9px;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.medibot-overview--structured .medibot-section-title {
+  margin: 0 0 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  line-height: 1.3;
+  gap: 6px;
+}
+
+.medibot-overview--structured .medibot-section-num {
+  min-width: 18px;
+  height: 18px;
+  font-size: 9px;
+  border-radius: 4px;
+}
+
+.medibot-overview--structured .medibot-subhead {
+  margin: 6px 0 4px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.medibot-overview--structured .medibot-cols-2 {
+  gap: 8px;
+}
+
+.medibot-overview--structured .medibot-cols-2--card-pair {
+  gap: 10px;
+}
+
+.medibot-overview--structured .medibot-col-card {
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+
+.medibot-overview--structured .medibot-gov-grid--card-pair {
+  gap: 10px;
+}
+
+.medibot-overview--structured .medibot-subhead--after-list {
+  margin-top: 10px;
+  margin-bottom: 6px;
+}
+
+.medibot-overview--structured .medibot-city-grid--compact {
+  gap: 5px;
+}
+
+.medibot-overview--structured .medibot-city-card {
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+
+.medibot-overview--structured .medibot-city-head {
+  font-size: 9px;
+  gap: 4px;
+}
+
+.medibot-overview--structured .medibot-city-count {
+  margin: 4px 0 2px;
+  font-size: 14px;
+}
+
+.medibot-overview--structured .medibot-city-bar-track {
+  margin: 4px 0;
+  height: 5px;
+}
+
+.medibot-overview--structured .medibot-city-pct {
+  font-size: 10px;
+}
+
+.medibot-overview--structured .medibot-banner--compact {
+  margin-top: 6px;
+  padding: 5px 7px;
+  font-size: 10px;
+  border-radius: 8px;
+  gap: 6px;
+}
+
+.medibot-overview--structured .medibot-banner--compact svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.medibot-overview--structured .medibot-gov-grid {
+  gap: 8px;
+}
+
+.medibot-overview--structured .medibot-gov-head {
+  margin-bottom: 4px;
+}
+
+.medibot-overview--structured .medibot-gov-head h3 {
+  font-size: 11px;
+}
+
+.medibot-overview--structured .medibot-link-btn {
+  font-size: 10px;
+}
+
+.medibot-overview--structured .medibot-vq-rich-list,
+.medibot-overview--structured .medibot-watch-rich-list,
+.medibot-overview--structured .medibot-audit-list {
+  gap: 6px;
+}
+
+.medibot-overview--structured .medibot-vq-rich-card,
+.medibot-overview--structured .medibot-watch-rich-card,
+.medibot-overview--structured .medibot-audit-card {
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+
+.medibot-overview--structured .medibot-vq-rich-card strong {
+  font-size: 12px;
+}
+
+.medibot-overview--structured .medibot-vq-lic,
+.medibot-overview--structured .medibot-vq-meta {
+  margin: 4px 0 2px;
+  font-size: 10px;
+}
+
+.medibot-overview--structured .medibot-vq-flag {
+  font-size: 10px;
+  margin: 2px 0 0;
+}
+
+.medibot-overview--structured .medibot-watch-rich-card {
+  gap: 8px;
+}
+
+.medibot-overview--structured .medibot-watch-sev {
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.medibot-overview--structured .medibot-watch-rich-card strong {
+  font-size: 12px;
+}
+
+.medibot-overview--structured .medibot-watch-rich-card .medibot-muted {
+  font-size: 10px;
+  margin: 2px 0 0;
+}
+
+.medibot-overview--structured .medibot-vq-actions {
+  margin-top: 6px;
+  gap: 5px;
+}
+
+.medibot-overview--structured .medibot-chip-btn {
+  padding: 4px 7px;
+  font-size: 9px;
+  border-radius: 6px;
+}
+
+.medibot-overview--structured .medibot-health-grid {
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.medibot-overview--structured .medibot-health-stat {
+  padding: 6px 8px;
+  border-radius: 8px;
+  gap: 2px;
+}
+
+.medibot-overview--structured .medibot-health-k {
+  font-size: 8px;
+}
+
+.medibot-overview--structured .medibot-health-v {
+  font-size: 14px;
+}
+
+.medibot-overview--structured .medibot-alert-strip {
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.medibot-overview--structured .medibot-alert-chip {
+  padding: 4px 8px;
+  font-size: 10px;
+}
+
+.medibot-overview--structured .medibot-algo-head {
+  margin-bottom: 6px;
+}
+
+.medibot-overview--structured .medibot-algo-mode {
+  font-size: 11px;
+  gap: 6px;
+}
+
+.medibot-overview--structured .medibot-algo-mode svg {
+  width: 14px;
+  height: 14px;
+}
+
+.medibot-overview--structured .medibot-weight-row--tight {
+  margin-bottom: 4px;
+  gap: 8px;
+}
+
+.medibot-overview--structured .medibot-weight-text strong {
+  font-size: 11px;
+}
+
+.medibot-overview--structured .medibot-weight-bar-wrap {
+  height: 6px;
+}
+
+.medibot-overview--structured .medibot-weight-pct {
+  font-size: 11px;
+}
+
+.medibot-overview--structured .medibot-weight-total {
+  padding: 6px 8px;
+  margin: 2px 0 6px;
+  font-size: 11px;
+  border-radius: 8px;
+}
+
+.medibot-overview--structured .medibot-algo-actions {
+  gap: 6px;
+  margin-bottom: 0;
+}
+
+.medibot-overview--structured .medibot-algo-actions .btn-light,
+.medibot-overview--structured .medibot-algo-actions .admin-btn-alerts {
+  padding: 5px 10px;
+  font-size: 11px;
+}
+
+.medibot-overview--structured .medibot-profile-stack {
+  gap: 5px;
+  margin-bottom: 6px;
+}
+
+.medibot-overview--structured .medibot-profile-stack .medibot-profile-card {
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+
+.medibot-overview--structured .medibot-profile-card h4 {
+  margin: 0 0 2px;
+  font-size: 11px;
+}
+
+.medibot-overview--structured .medibot-profile-badge {
+  font-size: 8px;
+  padding: 1px 6px;
+  margin-bottom: 4px;
+}
+
+.medibot-overview--structured .medibot-profile-weights {
+  font-size: 10px;
+}
+
+.medibot-overview--structured .medibot-profile-link {
+  margin-top: 6px;
+  font-size: 10px;
+}
+
+.medibot-overview--structured .medibot-bar-chart {
+  min-height: 78px;
+  padding: 6px 5px 5px;
+  border-radius: 8px;
+}
+
+.medibot-overview--structured .medibot-bar-stack {
+  height: 56px;
+  max-width: 26px;
+}
+
+.medibot-overview--structured .medibot-bar-label {
+  font-size: 8px;
+}
+
+.medibot-overview--structured .medibot-chart-legend {
+  gap: 12px;
+  margin-bottom: 6px;
+  font-size: 10px;
+}
+
+.medibot-overview--structured .medibot-equity-grid--dense {
+  gap: 5px;
+  margin-bottom: 6px;
+}
+
+.medibot-overview--structured .medibot-equity-grid--dense .medibot-equity-card {
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+
+.medibot-overview--structured .medibot-equity-k {
+  font-size: 9px;
+  margin-bottom: 2px;
+}
+
+.medibot-overview--structured .medibot-equity-v {
+  font-size: 13px;
+}
+
+.medibot-overview--structured .medibot-policy-row {
+  padding: 6px 0;
+}
+
+.medibot-overview--structured .medibot-policy-text strong {
+  font-size: 11px;
+}
+
+.medibot-overview--structured .medibot-policy-foot {
+  font-size: 9px;
+  margin: 4px 0 6px;
+}
+
+.medibot-overview--structured .medibot-switch {
+  width: 38px;
+  height: 22px;
+}
+
+.medibot-overview--structured .medibot-switch-knob {
+  width: 16px;
+  height: 16px;
+  top: 2px;
+  left: 2px;
+}
+
+.medibot-overview--structured .medibot-switch--on .medibot-switch-knob {
+  transform: translateX(18px);
+}
+
+.medibot-overview--structured .medibot-audit-q {
+  font-size: 11px;
+  margin: 0 0 2px;
+}
+
+.medibot-overview--structured .medibot-audit-when {
+  font-size: 9px;
+  margin: 0 0 4px;
+}
+
+.medibot-overview--structured .medibot-audit-resp {
+  font-size: 10px;
+}
+
+.medibot-overview--structured .medibot-audit-sev {
+  font-size: 13px;
+}
+
+.medibot-overview--structured .medibot-sla-foot {
+  margin: 0 0 4px;
+  font-size: 10px;
+}
+
+.medibot-overview--structured .medibot-sla-list {
+  gap: 4px;
+}
+
+.medibot-overview--structured .medibot-sla-row {
+  gap: 6px;
+  font-size: 10px;
+  grid-template-columns: minmax(64px, 1fr) minmax(0, 2fr) 36px 16px;
+}
+
+.medibot-overview--structured .medibot-sla-time {
+  font-size: 10px;
+}
+
+.medibot-overview--structured .medibot-sla-track {
+  height: 6px;
+}
+
+.medibot-overview--structured .medibot-sla-ic {
+  width: 15px;
+  height: 15px;
+}
+
+.medibot-overview--structured .medibot-sla-list--wide {
+  max-width: none;
+}
+
+.medibot-cols-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: stretch;
+}
+
+.medibot-cols-2--card-pair {
+  gap: 18px;
+}
+
+@media (max-width: 900px) {
+  .medibot-cols-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.medibot-col-block {
+  min-width: 0;
+}
+
+.medibot-col-block--full {
+  width: 100%;
+  max-width: 100%;
+}
+
+.medibot-col-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.medibot-col-block > .medibot-subhead:first-child,
+.medibot-col-card > .medibot-subhead:first-child {
+  margin-top: 0;
+}
+
+.medibot-subhead--after-list {
+  margin-top: 16px;
+  margin-bottom: 8px;
+}
+
+.medibot-health-grid--in-gov-card {
+  margin-top: 0;
+}
+
+.medibot-gov-grid--card-pair {
+  gap: 18px;
+  align-items: stretch;
+}
+
+.medibot-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  box-shadow: var(--shadow-sm);
+}
+
+.medibot-section--compact {
+  padding: 12px 14px;
+}
+
+.medibot-section-title {
+  margin: 0 0 14px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.medibot-section-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--teal-light);
+  color: var(--teal-dark);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.medibot-section-lead {
+  margin: -8px 0 12px;
+  font-size: 12px;
+}
+
+.medibot-subhead {
+  margin: 20px 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.medibot-kpi-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  min-height: 28px;
+}
+
+.medibot-kpi-emoji {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.medibot-kpi-pill {
+  font-size: 8px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.medibot-kpi-head .medibot-kpi-pill {
+  font-size: 7px;
+  padding: 1px 5px;
+}
+
+.medibot-kpi-pill--up {
+  border-color: rgba(13, 148, 136, 0.45);
+  background: var(--teal-light);
+  color: var(--teal-dark);
+}
+
+.medibot-kpi-pill--down {
+  border-color: rgba(234, 88, 12, 0.35);
+  background: rgba(254, 243, 199, 0.8);
+  color: #c2410c;
+}
+
+.medibot-kpi-pill--neutral {
+  background: #f1f5f9;
+}
+
+.medibot-kpi-pill--ok {
+  border-color: rgba(52, 211, 153, 0.45);
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.medibot-kpi-pill--pending {
+  border-color: rgba(251, 191, 36, 0.5);
+  background: #fffbeb;
+  color: #b45309;
+}
+
+.medibot-kpi-pill--online {
+  border-color: rgba(52, 211, 153, 0.45);
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.medibot-banner--compact {
+  margin-top: 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.medibot-gov-count {
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.medibot-vq-rich-list,
+.medibot-watch-rich-list,
+.medibot-audit-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.medibot-vq-rich-card {
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.medibot-vq-rich-card strong {
+  font-size: 14px;
+}
+
+.medibot-vq-lic {
+  margin: 6px 0 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.medibot-vq-meta {
+  margin: 0 0 6px;
+  font-size: 12px;
+}
+
+.medibot-vq-flag {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: #b45309;
+}
+
+.medibot-vq-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.medibot-vq-actions--wrap {
+  margin-top: 10px;
+}
+
+.medibot-chip-btn {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.medibot-chip-btn:hover {
+  border-color: var(--teal);
+  color: var(--teal-dark);
+}
+
+.medibot-chip-btn--ok {
+  border-color: rgba(52, 211, 153, 0.45);
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.medibot-chip-btn--bad {
+  border-color: rgba(248, 113, 113, 0.45);
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.medibot-chip-btn--accent {
+  border-color: rgba(45, 212, 191, 0.5);
+  background: var(--teal-light);
+  color: var(--teal-dark);
+}
+
+.medibot-watch-rich-card {
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.medibot-watch-rich-card--bad {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.medibot-watch-rich-card--warn {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.medibot-watch-rich-card--ok {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.medibot-watch-sev {
+  font-size: 16px;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+
+.medibot-health-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.medibot-health-grid--inline {
+  margin-top: 12px;
+}
+
+.medibot-health-stat {
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.medibot-health-k {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.medibot-health-v {
+  font-family: var(--font-serif);
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.medibot-algo-head {
+  margin-bottom: 14px;
+}
+
+.medibot-algo-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.medibot-algo-mode strong {
+  color: var(--text);
+}
+
+.medibot-weight-row {
+  display: grid;
+  grid-template-columns: 1fr minmax(80px, 140px) 40px;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.medibot-weight-row--tight {
+  margin-bottom: 8px;
+}
+
+@media (max-width: 640px) {
+  .medibot-weight-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.medibot-weight-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+}
+
+.medibot-weight-text strong {
+  font-size: 13px;
+}
+
+.medibot-weight-bar-wrap {
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.medibot-weight-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #0d9488, #2dd4bf);
+  border-radius: 4px;
+  min-width: 4px;
+}
+
+.medibot-weight-pct {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--teal-dark);
+}
+
+.medibot-weight-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  margin: 8px 0 14px;
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--border);
+  font-size: 13px;
+}
+
+.medibot-algo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.medibot-col-block .medibot-algo-actions {
+  margin-bottom: 0;
+}
+
+.medibot-profile-lead {
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+
+.medibot-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.medibot-profile-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.medibot-profile-stack .medibot-profile-card {
+  padding: 10px 12px;
+}
+
+.medibot-profile-stack .medibot-profile-card h4 {
+  margin: 0 0 4px;
+}
+
+.medibot-profile-card {
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.medibot-profile-card--active {
+  border-color: rgba(13, 148, 136, 0.45);
+  box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.15);
+}
+
+.medibot-profile-card h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.medibot-profile-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--teal-light);
+  color: var(--teal-dark);
+  margin-bottom: 8px;
+}
+
+.medibot-profile-badge--off {
+  background: #f1f5f9;
+  color: var(--muted);
+}
+
+.medibot-profile-weights {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.medibot-profile-note {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.medibot-profile-link {
+  margin-top: 12px;
+  display: inline-block;
+}
+
+.medibot-chart-legend {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.medibot-legend-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.medibot-legend-swatch--urban {
+  background: #0d9488;
+}
+
+.medibot-legend-swatch--rural {
+  background: #94a3b8;
+}
+
+.medibot-bar-chart {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 140px;
+  padding: 12px 8px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.medibot-bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.medibot-bar-stack {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 36px;
+  height: 100px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.medibot-bar-urban {
+  background: #0d9488;
+  min-height: 4px;
+}
+
+.medibot-bar-rural {
+  background: #94a3b8;
+  min-height: 4px;
+}
+
+.medibot-bar-label {
+  font-size: 9px;
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.2;
+}
+
+.medibot-equity-k {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.medibot-equity-v {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.medibot-milestones {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.medibot-milestones--warn {
+  color: #b45309;
+}
+
+.medibot-audit-card {
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.medibot-audit-card--bad {
+  border-left: 3px solid #ef4444;
+}
+
+.medibot-audit-card--warn {
+  border-left: 3px solid #eab308;
+}
+
+.medibot-audit-card--ok {
+  border-left: 3px solid #22c55e;
+}
+
+.medibot-audit-sev {
+  flex-shrink: 0;
+  font-size: 16px;
+}
+
+.medibot-audit-q {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.medibot-audit-when {
+  margin: 0 0 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.medibot-audit-resp {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.medibot-audit-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 0 20px;
+}
+
+.medibot-policy-lead {
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+
+.medibot-policy-list {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.medibot-policy-foot {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 11px;
+  margin: 0 0 8px;
+  line-height: 1.45;
+}
+
+.medibot-policy-foot-ic {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--teal-dark);
+}
+
+.medibot-policy-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.medibot-policy-row:last-child {
+  border-bottom: none;
+}
+
+.medibot-policy-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  min-width: 0;
+}
+
+.medibot-policy-text strong {
+  font-size: 13px;
+}
+
+.medibot-policy-off {
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.medibot-switch {
+  position: relative;
+  width: 44px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #e2e8f0;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s ease;
+}
+
+.medibot-switch--on {
+  background: #0d9488;
+  border-color: #0f766e;
+}
+
+.medibot-switch-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: transform 0.15s ease;
+}
+
+.medibot-switch--on .medibot-switch-knob {
+  transform: translateX(18px);
+}
+
+.medibot-ethical-box {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(13, 148, 136, 0.35);
+  background: var(--teal-light);
+  margin-bottom: 12px;
+}
+
+.medibot-ethical-box svg {
+  flex-shrink: 0;
+  color: var(--teal-dark);
+}
+
+.medibot-ethical-box strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+
+.medibot-ethical-box p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.medibot-city-emoji {
+  margin-right: 4px;
+}
+
+.medibot-muted {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.medibot-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.medibot-kpi-row--strip {
+  gap: 5px;
+}
+
+.medibot-kpi-row--strip-5 {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.medibot-kpi-row--strip-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 1200px) {
+  .medibot-kpi-row--strip-5 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 800px) {
+  .medibot-kpi-row--strip-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .medibot-kpi-row--strip-5 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 400px) {
+  .medibot-kpi-row--strip-5,
+  .medibot-kpi-row--strip-4 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.medibot-kpi-row--overview {
+  grid-column: 1 / -1;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.medibot-kpi-row--solo {
+  margin-bottom: 8px;
+}
+
+.medibot-kpi {
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.medibot-kpi--tile {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 5px 7px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: linear-gradient(165deg, #ffffff 0%, #f8fafc 100%);
+  box-shadow: 0 1px 1px rgba(15, 23, 42, 0.04);
+  min-width: 0;
+}
+
+.medibot-kpi--tile.medibot-kpi--side {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.medibot-kpi-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  margin-bottom: 3px;
+}
+
+.medibot-kpi-icon-wrap {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: rgba(13, 148, 136, 0.1);
+  color: var(--teal-dark);
+}
+
+.medibot-kpi--tile.medibot-kpi--side .medibot-kpi-icon-wrap {
+  margin-top: 0;
+}
+
+.medibot-kpi-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.medibot-kpi--tile .medibot-kpi-label {
+  margin: 0;
+  line-height: 1.2;
+  font-size: 8px;
+  letter-spacing: 0.04em;
+}
+
+.medibot-kpi--tile .medibot-kpi-value {
+  margin: 1px 0 0;
+  font-family: var(--font-serif);
+  font-size: 0.9375rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--text);
+}
+
+.medibot-kpi--tile .medibot-kpi-foot {
+  margin: 2px 0 0;
+  font-size: 9px;
+  line-height: 1.25;
+  color: var(--muted);
+}
+
+.medibot-kpi-icon {
+  color: var(--teal-dark);
+  opacity: 0.9;
+}
+
+.medibot-kpi-label {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.medibot-kpi-value {
+  margin: 4px 0 0;
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.medibot-kpi-foot {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.medibot-kpi-warn {
+  color: #b45309;
+  font-weight: 600;
+}
+
+.medibot-city-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.medibot-city-grid--compact {
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 8px;
+}
+
+.medibot-city-card {
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.medibot-city-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.medibot-city-count {
+  margin: 8px 0 4px;
+  font-family: var(--font-serif);
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.medibot-city-bar-track {
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin: 6px 0;
+}
+
+.medibot-city-bar-fill {
+  height: 100%;
+  background: var(--teal);
+  border-radius: 3px;
+}
+
+.medibot-city-pct {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.medibot-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+
+.medibot-banner--warn {
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+}
+
+.medibot-sla-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.medibot-sla-list--wide {
+  max-width: 560px;
+}
+
+.medibot-sla-row {
+  display: grid;
+  grid-template-columns: 100px 1fr 48px 20px;
+  gap: 10px;
+  align-items: center;
+  font-size: 12px;
+}
+
+.medibot-sla-label {
+  font-weight: 600;
+}
+
+.medibot-sla-track {
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.medibot-sla-fill {
+  height: 100%;
+  border-radius: 4px;
+}
+
+.medibot-sla-fill--ok {
+  background: var(--teal);
+}
+
+.medibot-sla-fill--slow {
+  background: #ea580c;
+}
+
+.medibot-sla-fill--mid {
+  background: linear-gradient(90deg, #ca8a04, #eab308);
+}
+
+.medibot-sla-time {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.medibot-sla-ic.ok {
+  color: var(--teal-dark);
+}
+
+.medibot-sla-ic.bad {
+  color: #ea580c;
+}
+
+.medibot-sla-ic.mid {
+  color: #ca8a04;
+}
+
+.medibot-sla-suffix {
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.medibot-sla-foot {
+  margin: 0 0 8px;
+  font-size: 12px;
+}
+
+.medibot-col-block .medibot-sla-foot {
+  margin-top: 0;
+}
+
+.medibot-sla-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.medibot-sla-badge.ok {
+  background: var(--teal-light);
+  color: var(--teal-dark);
+}
+
+.medibot-sla-badge.bad {
+  background: rgba(234, 88, 12, 0.12);
+  color: #c2410c;
+}
+
+.medibot-gov-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: stretch;
+}
+
+@media (max-width: 900px) {
+  .medibot-gov-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.medibot-gov-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.medibot-gov-head h3 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.medibot-link-btn {
+  border: none;
+  background: none;
+  color: var(--teal-dark);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.medibot-link-btn:hover {
+  color: var(--teal);
+  text-decoration: underline;
+}
+
+.medibot-gov-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.medibot-gov-card {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.medibot-gov-card--warn {
+  border-color: #fcd34d;
+  background: #fffbeb;
+}
+
+.medibot-alert-strip {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.medibot-alert-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  font-size: 11px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  max-width: min(280px, 100%);
+  text-align: left;
+}
+
+.medibot-alert-chip-title {
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.medibot-alert-chip-sub {
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.3;
+  opacity: 0.9;
+  white-space: normal;
+}
+
+.medibot-alert-chip--critical {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.medibot-alert-chip--warn {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #b45309;
+}
+
+.medibot-alert-chip--ok {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #047857;
+}
+
+.medibot-tab-page {
+  max-width: none;
+  width: 100%;
+}
+
+.medibot-tab-lead {
+  margin: 0 0 14px;
+  line-height: 1.5;
+}
+
+.medibot-code {
+  font-size: 11px;
+  background: #f1f5f9;
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.medibot-heatmap-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.medibot-heatmap-cell {
+  position: relative;
+  padding: 16px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  min-height: 120px;
+}
+
+.medibot-heatmap-intensity {
+  position: absolute;
+  inset: 0;
+  background: var(--teal);
+  pointer-events: none;
+}
+
+.medibot-heatmap-pin {
+  position: relative;
+  color: var(--teal-dark);
+  z-index: 1;
+}
+
+.medibot-heatmap-cell h3 {
+  position: relative;
+  margin: 8px 0 4px;
+  font-size: 14px;
+  z-index: 1;
+  color: var(--text);
+}
+
+.medibot-heatmap-count {
+  position: relative;
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 800;
+  z-index: 1;
+  color: var(--text);
+}
+
+.medibot-heatmap-cell .medibot-muted {
+  position: relative;
+  z-index: 1;
+}
+
+.medibot-tab-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.medibot-queue-count {
+  margin: 0;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.medibot-vq-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.medibot-vq-card {
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.medibot-vq-dl {
+  margin: 10px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.medibot-vq-dl dt {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.medibot-vq-dl dd {
+  margin: 2px 0 0;
+  font-size: 13px;
+}
+
+.medibot-vq-note {
+  margin-top: 10px;
+  font-size: 11px;
+}
+
+.medibot-watch-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.medibot-watch-card {
+  display: flex;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid #fde68a;
+  background: #fffbeb;
+}
+
+.medibot-watch-card strong {
+  color: var(--text);
+}
+
+.medibot-watch-ic {
+  color: #d97706;
+  flex-shrink: 0;
+}
+
+.medibot-equity-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.medibot-equity-grid--dense {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.medibot-equity-grid--dense .medibot-equity-card {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+}
+
+.medibot-equity-card {
+  padding: 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.medibot-equity-card h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.medibot-settings-page {
+  max-width: none;
+  width: 100%;
+}
+
+.medibot-settings-header {
+  margin-bottom: 18px;
+}
+
+.medibot-settings-heading {
+  margin: 0 0 6px;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+.medibot-settings-card h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.medibot-settings-card-icon {
+  flex-shrink: 0;
+  color: var(--teal-dark);
+  opacity: 0.9;
+}
+
+.medibot-settings-dl {
+  margin: 12px 0 0;
+  display: grid;
+  gap: 10px;
+}
+
+.medibot-settings-dl > div {
+  display: grid;
+  grid-template-columns: minmax(88px, 110px) 1fr;
+  gap: 10px;
+  align-items: start;
+  font-size: 13px;
+}
+
+.medibot-settings-dl dt {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.medibot-settings-dl dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+.medibot-settings-mono {
+  display: inline-block;
+  max-width: 100%;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.medibot-settings-actions {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.medibot-settings-actions .btn-light {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.medibot-settings-danger-btn {
+  margin-top: 10px;
+}
+
+.medibot-settings-toast {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--teal-dark);
+  font-weight: 600;
+}
+
+@media (max-width: 960px) {
+  .admin-dashboard--medibot .admin-sidebar--medibot {
+    width: 220px;
+  }
+  .admin-dashboard--medibot .admin-main--medibot {
+    margin-left: 220px;
+    padding: 12px 16px 16px;
+  }
+}
+
+/* —— MediBot admin: light theme, full-width content area —— */
+.admin-dashboard--medibot .admin-main--medibot {
+  flex: 1;
+  min-width: 0;
+  max-width: none;
+  width: auto;
+}
+
+.admin-dashboard--medibot .admin-sb-logo--medibot {
+  font-family: var(--font-serif);
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: -0.02em;
+}
+
+.admin-dashboard--medibot .admin-topbar-clock {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 12px;
+}
+
+.admin-dashboard--medibot .mono,
+.admin-dashboard--medibot .medibot-code {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+/* Mock page: stats strip + two-column layout (light) */
+.medibot-mock-stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 900px) {
+  .medibot-mock-stats-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.medibot-mock-stat-card {
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+}
+
+.medibot-mock-stat-val {
+  font-size: 22px;
+  font-weight: 700;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+.medibot-mock-stat-label {
+  font-size: 10px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 4px;
+}
+
+.medibot-mock-split {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .medibot-mock-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.medibot-mock-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.medibot-mock-panel-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--text);
+}
+
+.medibot-mock-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.medibot-mock-chip {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.medibot-mock-chip--warn {
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.25);
+}
+
+.medibot-mock-chip--danger {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.25);
+}
+
+.medibot-mock-queue-card {
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.15s ease;
+}
+
+.medibot-mock-queue-card:hover {
+  border-color: var(--teal-mid);
+}
+
+.medibot-mock-queue-card--rural {
+  border-color: rgba(0, 212, 184, 0.22);
+  background: rgba(0, 212, 184, 0.05);
+}
+
+.medibot-mock-queue-card--flagged {
+  border-color: rgba(245, 158, 11, 0.25);
+  background: rgba(245, 158, 11, 0.05);
+}
+
+.medibot-mock-queue-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.medibot-mock-queue-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.medibot-mock-queue-lic {
+  font-size: 10px;
+  color: var(--muted);
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  margin-top: 2px;
+}
+
+.medibot-mock-pri {
+  font-size: 10px;
+  padding: 3px 9px;
+  border-radius: 5px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.medibot-mock-pri-rural {
+  background: var(--teal-light);
+  color: var(--teal-dark);
+}
+
+.medibot-mock-pri-std {
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.medibot-mock-meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.medibot-mock-meta {
+  padding: 8px 10px;
+  background: var(--surface-2);
+  border-radius: 7px;
+  border: 1px solid var(--border);
+}
+
+.medibot-mock-meta-k {
+  font-size: 9px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.medibot-mock-meta-v {
+  font-size: 11px;
+  font-weight: 500;
+  margin-top: 2px;
+  color: var(--text);
+}
+
+.medibot-mock-q-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.medibot-mock-qa {
+  padding: 7px 14px;
+  border-radius: 7px;
+  border: none;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.medibot-mock-qa-approve {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.medibot-mock-qa-suspend {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.medibot-mock-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.medibot-mock-checklist-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+/* Watchlist mock */
+.medibot-mock-wl-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 900px) {
+  .medibot-mock-wl-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.medibot-mock-wl-layout {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .medibot-mock-wl-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.medibot-mock-wl-card {
+  border-radius: 12px;
+  padding: 18px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.medibot-mock-wl-card--critical {
+  background: rgba(239, 68, 68, 0.06);
+  border-color: rgba(239, 68, 68, 0.28);
+}
+
+.medibot-mock-wl-card--warn {
+  background: rgba(245, 158, 11, 0.05);
+  border-color: rgba(245, 158, 11, 0.22);
+}
+
+.medibot-mock-wl-card--monitor {
+  background: rgba(16, 185, 129, 0.05);
+  border-color: rgba(16, 185, 129, 0.18);
+  opacity: 0.92;
+}
+
+.medibot-mock-wl-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.medibot-mock-wl-m {
+  padding: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.medibot-mock-wl-mv {
+  font-size: 16px;
+  font-weight: 700;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+.medibot-mock-wl-ml {
+  font-size: 9px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.medibot-mock-platform-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.medibot-mock-platform-row:last-child {
+  border-bottom: none;
+}
+
+/* Users mock stats */
+.medibot-users-mock-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 900px) {
+  .medibot-users-mock-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.medibot-users-mock-stat {
+  padding: 16px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: var(--shadow-sm);
+}
+
+.medibot-users-mock-stat-ic {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+/* —— Compact mode: tighter shell + content (all admin pages) —— */
+.admin-dashboard--compact.admin-dashboard--medibot .admin-sidebar--medibot {
+  padding: 10px 0 8px;
+}
+
+.admin-dashboard--compact .admin-sb-brand--medibot {
+  padding: 0 12px 8px;
+}
+
+.admin-dashboard--compact .admin-sb-status-card {
+  margin: 8px 10px 8px;
+  padding: 7px 8px 6px;
+}
+
+.admin-dashboard--compact .admin-sb-nav--medibot .admin-sb-section--medibot {
+  padding: 8px 12px 3px;
+  font-size: 8px;
+}
+
+.admin-dashboard--compact .admin-sb-nav--medibot .admin-sb-item {
+  padding: 5px 12px;
+  font-size: 11px;
+}
+
+.admin-dashboard--compact .admin-sb-footer--medibot {
+  padding: 8px 12px 0;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot {
+  padding: 11px 14px 14px;
+}
+
+.admin-dashboard--compact .admin-main .admin-topbar {
+  margin-bottom: 8px;
+  gap: 10px;
+}
+
+.admin-dashboard--compact .admin-main .admin-topbar h1 {
+  font-size: 1.15rem;
+  line-height: 1.2;
+}
+
+.admin-dashboard--compact .admin-main .admin-topbar p {
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .admin-topbar {
+  margin-bottom: 6px;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .admin-topbar--medibot h1 {
+  font-size: 1.1rem;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .admin-topbar p {
+  font-size: 11px;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .admin-panel {
+  padding: 6px 8px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .admin-panel-head {
+  margin-bottom: 3px;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .admin-panel h2 {
+  font-size: 11px;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .admin-stats-grid,
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .admin-stats-grid--kpi {
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .admin-stat-card {
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .admin-stat-card h3 {
+  font-size: 15px;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .admin-stat-trend {
+  margin-top: 3px;
+  font-size: 8px;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .admin-hero-panel {
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  border-radius: 10px;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .admin-hero-panel h2 {
+  font-size: 15px;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .admin-table th,
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .admin-table td {
+  padding: 5px 6px;
+  font-size: 10px;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .admin-table th {
+  font-size: 8px;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .admin-registry-metrics {
+  gap: 6px 10px;
+  margin-bottom: 8px;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .admin-registry-metric-value {
+  font-size: 19px;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .admin-filter-input,
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .admin-filter-select {
+  height: 30px;
+  font-size: 10px;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .medibot-tab-lead {
+  margin: 0 0 6px;
+  font-size: 11px;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .medibot-tab-toolbar {
+  margin-bottom: 6px;
+  gap: 6px;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .medibot-queue-count {
+  font-size: 11px;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .medibot-heatmap-grid {
+  gap: 6px;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .medibot-heatmap-cell {
+  padding: 8px 8px;
+  min-height: 84px;
+  border-radius: 8px;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .medibot-heatmap-cell h3 {
+  font-size: 11px;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .medibot-heatmap-count {
+  font-size: 16px;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .medibot-vq-grid {
+  gap: 6px;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .medibot-vq-card {
+  padding: 8px;
+  border-radius: 8px;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .medibot-watch-list {
+  gap: 6px;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .medibot-watch-card {
+  padding: 6px 8px;
+  gap: 8px;
+  border-radius: 8px;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .medibot-equity-grid {
+  gap: 8px;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .medibot-equity-card {
+  padding: 8px 10px;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .medibot-equity-card h3 {
+  margin: 0 0 4px;
+  font-size: 11px;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .priority-queue-card {
+  padding: 6px 8px;
+}
+
+.admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot .admin-request-card {
+  padding: 8px;
+}
+
+.admin-dashboard--compact .admin-request-grid {
+  gap: 8px;
+}
+
+.admin-dashboard--compact .admin-request-card {
+  padding: 9px 10px;
+  border-radius: 10px;
+}
+
+.admin-dashboard--compact .admin-loading {
+  padding: 8px 10px;
+  font-size: 11px;
+}
+
+.admin-dashboard--compact .admin-error {
+  padding: 6px 8px;
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+
+.admin-dashboard--compact .table-wrap {
+  border-radius: 8px;
+}
+
+.admin-dashboard--compact .btn-light,
+.admin-dashboard--compact .btn-notify,
+.admin-dashboard--compact .btn-danger {
+  height: 30px;
+  padding: 0 9px;
+  font-size: 11px;
+}
+
+.admin-dashboard--compact .medibot-tab-lead {
+  margin: 0 0 8px;
+  font-size: 11px;
+}
+
+.admin-dashboard--compact .medibot-tab-toolbar {
+  margin-bottom: 8px;
+  gap: 6px;
+}
+
+.admin-dashboard--compact .medibot-queue-count {
+  font-size: 12px;
+}
+
+.admin-dashboard--compact .medibot-overview {
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.admin-dashboard--compact .medibot-overview--structured {
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.admin-dashboard--compact .medibot-overview--structured .medibot-section {
+  padding: 5px 7px;
+  border-radius: 8px;
+}
+
+.admin-dashboard--compact .medibot-overview--structured .medibot-section-title {
+  margin: 0 0 4px;
+  padding-bottom: 3px;
+  font-size: 10px;
+}
+
+.admin-dashboard--compact .medibot-mock-stats-row {
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.admin-dashboard--compact .medibot-mock-stat-card {
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+
+.admin-dashboard--compact .medibot-mock-stat-val {
+  font-size: 18px;
+}
+
+.admin-dashboard--compact .medibot-mock-split {
+  gap: 10px;
+}
+
+.admin-dashboard--compact .medibot-mock-panel {
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  border-radius: 10px;
+}
+
+.admin-dashboard--compact .medibot-mock-panel-title {
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.admin-dashboard--compact .medibot-mock-toolbar {
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.admin-dashboard--compact .medibot-mock-queue-card {
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border-radius: 10px;
+}
+
+.admin-dashboard--compact .medibot-mock-queue-head {
+  margin-bottom: 6px;
+  gap: 8px;
+}
+
+.admin-dashboard--compact .medibot-mock-queue-name {
+  font-size: 13px;
+}
+
+.admin-dashboard--compact .medibot-mock-meta-grid {
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.admin-dashboard--compact .medibot-mock-wl-layout {
+  gap: 10px;
+}
+
+.admin-dashboard--compact .medibot-mock-wl-card {
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  border-radius: 10px;
+}
+
+.admin-dashboard--compact .medibot-mock-wl-metrics {
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.admin-dashboard--compact .medibot-mock-wl-m {
+  padding: 7px 8px;
+  border-radius: 6px;
+}
+
+.admin-dashboard--compact .medibot-mock-wl-mv {
+  font-size: 14px;
+}
+
+.admin-dashboard--compact .medibot-users-mock-stats {
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.admin-dashboard--compact .medibot-users-mock-stat {
+  padding: 10px 12px;
+  gap: 10px;
+  border-radius: 10px;
+}
+
+.admin-dashboard--compact .medibot-users-mock-stat-ic {
+  width: 34px;
+  height: 34px;
+  font-size: 15px;
+}
+
+.admin-dashboard--compact .medibot-settings-header {
+  margin-bottom: 10px;
+}
+
+.admin-dashboard--compact .medibot-settings-heading {
+  font-size: 1.1rem;
+}
+
+.admin-dashboard--compact .medibot-settings-dl {
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.admin-dashboard--compact .medibot-settings-dl > div {
+  font-size: 12px;
+}
+
+@media (max-width: 960px) {
+  .admin-dashboard--compact.admin-dashboard--medibot .admin-main--medibot {
+    padding: 10px 12px 12px;
+  }
+
+  .admin-dashboard--compact .admin-overview-layout--compact .admin-panel--compact {
+    padding: 6px 8px;
+  }
+}
+
+/* —— Admin inventory page —— */
+.admin-inventory-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.admin-inventory-hero {
+  padding: 0 0 12px;
+  margin: 0 0 2px;
+  border-bottom: 1px solid var(--border);
+}
+
+.admin-inventory-hero-top {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+@media (min-width: 880px) {
+  .admin-inventory-hero-top {
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .admin-inventory-toolbar {
+    flex: 0 0 auto;
+    width: min(400px, 100%);
+  }
+}
+
+.admin-inventory-hero-intro {
+  min-width: 0;
+}
+
+.admin-inventory-title {
+  margin: 0 0 4px;
+  font-size: 1.125rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.admin-inventory-lead {
+  margin: 0;
+  max-width: 42rem;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.admin-inventory-lead-mono {
+  color: var(--text);
+  font-size: 10px;
+  word-break: break-all;
+  opacity: 0.92;
+}
+
+.admin-inventory-toolbar {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.admin-inventory-search {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  font-size: 13px;
+  border-radius: 8px;
+}
+
+.admin-inventory-reload {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 0 14px;
+  height: 34px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.admin-inventory-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 8px;
+}
+
+.admin-inventory-kpi {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  border-left-width: 3px;
+  border-left-color: #cbd5e1;
+  background: var(--surface);
+  box-shadow: none;
+  padding: 8px 10px 8px 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.admin-inventory-kpi--muted {
+  border-left-color: #94a3b8;
+}
+
+.admin-inventory-kpi--ok {
+  border-left-color: var(--teal);
+}
+
+.admin-inventory-kpi--warn {
+  border-left-color: #d97706;
+}
+
+.admin-inventory-kpi--bad {
+  border-left-color: #dc2626;
+}
+
+.admin-inventory-kpi-label {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.admin-inventory-kpi-value {
+  font-size: 1.125rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-inventory-kpi--ok .admin-inventory-kpi-value {
+  color: var(--teal-dark);
+}
+
+.admin-inventory-kpi--warn .admin-inventory-kpi-value {
+  color: #b45309;
+}
+
+.admin-inventory-kpi--bad .admin-inventory-kpi-value {
+  color: #b91c1c;
+}
+
+.admin-inventory-kpi--muted .admin-inventory-kpi-value {
+  color: var(--text);
+}
+
+.admin-inventory-panel.admin-panel {
+  padding: 12px 14px 14px;
+  margin-bottom: 0;
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.admin-inventory-panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.admin-inventory-section-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.admin-inventory-section-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-inventory-state {
+  margin: 0;
+  font-size: 13px;
+}
+
+.admin-inventory-state--muted {
+  color: var(--muted);
+}
+
+.admin-inventory-pharmacy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(272px, 1fr));
+  gap: 10px;
+}
+
+.admin-inventory-pharmacy-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-inventory-pharmacy-card::before {
+  content: '';
+  display: block;
+  height: 3px;
+  background: linear-gradient(90deg, var(--teal), #0d9488);
+  flex-shrink: 0;
+}
+
+.admin-inventory-card-head {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(13, 148, 136, 0.04), transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-inventory-card-title-block {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.admin-inventory-card-icon-wrap {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(13, 148, 136, 0.12);
+  color: var(--teal-dark);
+  border: 1px solid rgba(13, 148, 136, 0.15);
+}
+
+.admin-inventory-card-icon {
+  color: inherit;
+}
+
+.admin-inventory-card-title-text h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: var(--text);
+}
+
+.admin-inventory-line-pill {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 4px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  border: 1px solid rgba(13, 148, 136, 0.22);
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--teal-dark);
+}
+
+.admin-inventory-card-meta {
+  margin: 4px 0 0;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.admin-inventory-card-warn {
+  margin: 4px 0 0;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.admin-inventory-summary-pills {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+@media (max-width: 360px) {
+  .admin-inventory-summary-pills {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.admin-inventory-summary-pills .admin-inventory-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 11px;
+  color: var(--muted);
+  min-width: 0;
+}
+
+.admin-inventory-pill-k {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.admin-inventory-pill strong {
+  font-size: 13px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-inventory-pill--ok strong {
+  color: var(--teal-dark);
+}
+
+.admin-inventory-pill--warn strong {
+  color: #b45309;
+}
+
+.admin-inventory-pill--bad strong {
+  color: #b91c1c;
+}
+
+.admin-inventory-pill--muted strong {
+  color: var(--text);
+}
+
+.admin-inventory-items-wrap {
+  padding: 0;
+  background: var(--surface-2);
+  max-height: 220px;
+  overflow: auto;
+  border-top: 1px solid var(--border);
+}
+
+.admin-inventory-items-head {
+  display: grid;
+  grid-template-columns: 1fr 52px 84px 72px;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 10px;
+  margin: 0;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  border-bottom: 1px solid var(--border);
+  background: rgba(248, 250, 252, 0.98);
+  backdrop-filter: blur(8px);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.admin-inventory-items-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.admin-inventory-item-row {
+  display: grid;
+  grid-template-columns: 1fr 52px 84px 72px;
+  gap: 6px;
+  align-items: center;
+  padding: 5px 10px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+  background: var(--surface);
+  transition: background 0.12s ease;
+}
+
+.admin-inventory-item-row:last-child {
+  border-bottom: none;
+}
+
+.admin-inventory-item-row:nth-child(even) {
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.admin-inventory-item-row:hover {
+  background: rgba(13, 148, 136, 0.07);
+}
+
+.admin-inventory-item-name {
+  font-weight: 600;
+  font-size: 11px;
+  min-width: 0;
+  justify-self: start;
+  line-height: 1.3;
+}
+
+.admin-inventory-item-qty,
+.admin-inventory-item-price {
+  font-size: 11px;
+  text-align: right;
+  justify-self: end;
+}
+
+.admin-inventory-status {
+  justify-self: end;
+  font-size: 9px;
+  font-weight: 700;
+  border-radius: 4px;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.admin-inventory-status--low-stock {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.12);
+  color: #92400e;
+}
+
+.admin-inventory-status--out-of-stock {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.1);
+  color: #991b1b;
+}
+
+.admin-inventory-status--in-stock {
+  border-color: rgba(13, 148, 136, 0.28);
+  background: rgba(13, 148, 136, 0.09);
+  color: var(--teal-dark);
+}
+
+.admin-inventory-empty {
+  padding: 10px 12px;
+  margin: 0;
+  font-size: 12px;
+}
+
+@media (max-width: 720px) {
+  .admin-inventory-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-inventory-search {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .admin-inventory-reload {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .admin-inventory-pharmacy-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-inventory-kpis {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 520px) {
+  .admin-inventory-kpis {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-inventory-items-head {
+    display: none;
+  }
+
+  .admin-inventory-item-row {
+    display: block;
+    padding: 12px;
+  }
+
+  .admin-inventory-item-row > span {
+    display: block;
+    text-align: left;
+    justify-self: stretch;
+  }
+
+  .admin-inventory-item-row > span + span {
+    margin-top: 6px;
+  }
+
+  .admin-inventory-item-row > span::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 2px;
+  }
+
+  .admin-inventory-item-qty,
+  .admin-inventory-item-price {
+    text-align: left;
   }
 }

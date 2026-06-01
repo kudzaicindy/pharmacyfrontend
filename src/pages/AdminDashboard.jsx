@@ -1,22 +1,63 @@
 import { useCallback, useEffect, useMemo, useState, useId } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { jsPDF } from 'jspdf'
+import { marked } from 'marked'
+import MediBotOverviewSections from '../components/admin/MediBotOverviewSections'
+import { AdminLayer1OperationsView, AdminVerificationQueueView } from '../components/admin/AdminMediBotTabViews'
 import { Package, RefreshCw, X } from 'lucide-react'
 import {
+  getAdminMe,
   getAdminDashboardData,
-  exportAdminPharmaciesRegistry,
+  getAdminMediBotOverview,
+  getAdminChatbotDashboardWidgets,
+  mergeMediBotOverviewWithWidgetsBundle,
   getAdminSearchVolumeAnalytics,
-  getAdminAuditLogs,
   createAdminPharmacy,
   normalizeAdminPaginatedResponse,
   getAdminUsersList,
   getAdminPatientsList,
   getAdminChatbotLogs,
   getAdminChatbotConversationLogs,
-  getPharmacistInventory
+  getPharmacistInventory,
+  getPharmacistRankingSummary,
+  updateAdminPharmacy,
+  adminLogoutRequest,
+  generateAdminReportNarrative
 } from '../utils/api'
+import { chatbotLogRowNeedsReview } from '../utils/adminChatbotAudit'
+import { extractDashboardVerificationQueue, getPharmacyRegistryStatus } from '../utils/pharmacyRegistryStatus'
+import {
+  parseLeaderboardRowsFromSummary,
+  leaderboardPharmacyIdsMatch,
+  rankingScoreLikePharmacyDashboardRow
+} from '../utils/pharmacyLeaderboard'
+import { displayLabelForAnalyticsGeoRegionKey } from '../utils/zwLocationBuckets'
+import { topMedicineBarRowsFromSearchVolume } from '../utils/adminSearchVolumeUi'
 import AdminAppShell from '../components/AdminAppShell'
+import AdminCommandCenter from '../components/admin/AdminCommandCenter'
 import { buildAdminNavSections, ADMIN_DASHBOARD_TAB_IDS } from '../utils/adminNavSections'
 import './AdminDashboard.css'
+
+/** Dedupe concurrent `GET .../admin/me/` (React StrictMode double-mount in dev). */
+let adminMeRequestPromise = null
+function dedupedGetAdminMe() {
+  if (!adminMeRequestPromise) {
+    adminMeRequestPromise = getAdminMe()
+      .catch(() => {})
+      .finally(() => {
+        adminMeRequestPromise = null
+      })
+  }
+  return adminMeRequestPromise
+}
+
+/** Dedupe concurrent initial dashboard `GET .../data/` — silent refresh bypasses. */
+let adminDashboardInitialLoadPromise = null
+const ADMIN_DASHBOARD_INITIAL_LIST_LIMIT = 30
+const ADMIN_DASHBOARD_INITIAL_VERIFICATION_LIMIT = 60
+const ADMIN_DASHBOARD_FULL_LIST_LIMIT = 100
+const ADMIN_DASHBOARD_FULL_VERIFICATION_LIMIT = 200
+const OPTIONAL_ADMIN_FETCH_TIMEOUT_MS = 12000
 
 function formatAdminDateShort(raw) {
   if (raw == null || raw === '' || raw === '—') return '—'
@@ -25,32 +66,42 @@ function formatAdminDateShort(raw) {
   return d.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })
 }
 
+function formatMediBotGeneratedAt(raw) {
+  if (raw == null || raw === '') return ''
+  const d = new Date(raw)
+  if (Number.isNaN(d.getTime())) return String(raw)
+  return d.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })
+}
+
+function csvEscape(value) {
+  const s = value == null ? '' : String(value)
+  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`
+  return s
+}
+
+function downloadCsv(filename, rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return false
+  const headers = Object.keys(rows[0])
+  const lines = [headers.join(',')]
+  for (const row of rows) {
+    lines.push(headers.map((h) => csvEscape(row[h])).join(','))
+  }
+  const blob = new Blob([`${lines.join('\n')}\n`], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+  return true
+}
+
 function formatAdminInventoryItemPrice(item) {
   if (item == null || item.price === '' || item.price == null) return '—'
   const u = String(item.price_unit || 'per_packet').replace(/^per_/, '').replace(/_/g, ' ')
   return `$${Number(item.price).toFixed(2)} / ${u}`
-}
-
-/**
- * Registry pill: admin dashboard payloads include `status` as the backend pill
- * (verified | pending_review | suspended). Fallback: is_active + verification_status.
- * Returns UI keys: verified | pending | suspended.
- */
-function getPharmacyRegistryStatus(p) {
-  const pill = String(p?.status || '').toLowerCase()
-  if (pill === 'pending_review') return 'pending'
-  if (pill === 'suspended') return 'suspended'
-  if (pill === 'verified') return 'verified'
-  if (p && p.is_active === false) return 'suspended'
-  const vs = String(p?.verification_status || '').toLowerCase()
-  if (vs === 'suspended') return 'suspended'
-  if (vs === 'pending_review') return 'pending'
-  if (vs === 'verified') return 'verified'
-  const legacy = String(p?.account_status || '').toLowerCase()
-  if (legacy === 'inactive' || legacy.includes('suspend')) return 'suspended'
-  if (legacy === 'pending' || legacy === 'pending_review') return 'pending'
-  if (legacy === 'verified' || legacy === 'active') return 'verified'
-  return 'verified'
 }
 
 /** MedicineRequest-style statuses that are still "in progress" (backend model). */
@@ -72,6 +123,21 @@ function sumRequestStatusBucket(statusDict, keys) {
 function sumAllRequestStatuses(statusDict) {
   if (!statusDict || typeof statusDict !== 'object') return 0
   return Object.values(statusDict).reduce((s, v) => s + (Number(v) || 0), 0)
+}
+
+function withTimeout(promise, ms) {
+  return new Promise((resolve, reject) => {
+    const id = setTimeout(() => reject(new Error('Request timed out')), ms)
+    promise
+      .then((value) => {
+        clearTimeout(id)
+        resolve(value)
+      })
+      .catch((err) => {
+        clearTimeout(id)
+        reject(err)
+      })
+  })
 }
 
 function suggestPharmacyIdFromName(name) {
@@ -156,28 +222,29 @@ function AdminSearchTrendChart({ counts, labels, labelShort, gradientId, compact
   )
 }
 
-function AdminDashboard() {
+export default function AdminDashboard() {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const trendGradientId = useId().replace(/:/g, '')
   const [activeTab, setActiveTab] = useState('overview')
+  const selectTab = useCallback(
+    (id) => {
+      setActiveTab(id)
+      setSearchParams({ tab: id }, { replace: true })
+    },
+    [setSearchParams]
+  )
   const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
+  /** Pharmacy ID (string) while PATCH .../status/ is in flight for registry table */
+  const [pharmacyRegistrySavingId, setPharmacyRegistrySavingId] = useState(null)
   const [pharmacies, setPharmacies] = useState([])
   const [pharmacists, setPharmacists] = useState([])
   const [allRequests, setAllRequests] = useState([])
   const [allReservations, setAllReservations] = useState([])
-  const [pharmacySearch, setPharmacySearch] = useState('')
-  const [healthFilter, setHealthFilter] = useState('all')
-  const [minRatingFilter, setMinRatingFilter] = useState('all')
-  const [sortBy, setSortBy] = useState('attention')
-  const [selectedPharmacyId, setSelectedPharmacyId] = useState('')
   const [activityRange, setActivityRange] = useState('7d')
   const [registryStatusFilter, setRegistryStatusFilter] = useState('all')
   const [registryQuery, setRegistryQuery] = useState('')
-  const [catalogueQuery, setCatalogueQuery] = useState('')
-  const [cataloguePharmacyFilter, setCataloguePharmacyFilter] = useState('all')
   const [registrySummary, setRegistrySummary] = useState(null)
   const [searchVolumeAnalytics, setSearchVolumeAnalytics] = useState(null)
   const [exportBusy, setExportBusy] = useState(false)
@@ -192,12 +259,6 @@ function AdminDashboard() {
     phone: '',
     email: ''
   })
-
-  const [auditLogs, setAuditLogs] = useState([])
-  const [auditPage, setAuditPage] = useState(1)
-  const [auditTotal, setAuditTotal] = useState(null)
-  const [auditLoading, setAuditLoading] = useState(false)
-  const [auditError, setAuditError] = useState('')
 
   const [usersListPage, setUsersListPage] = useState(1)
   const [usersListSearchIn, setUsersListSearchIn] = useState('')
@@ -224,18 +285,30 @@ function AdminDashboard() {
   const [chatbotLogsTotal, setChatbotLogsTotal] = useState(null)
   const [chatbotLogsLoading, setChatbotLogsLoading] = useState(false)
   const [chatbotLogsError, setChatbotLogsError] = useState('')
+  /** True after first chatbot logs fetch for overview / audit / command center (avoids demo/placeholder audit cards). */
+  const [chatbotLogsHasLoaded, setChatbotLogsHasLoaded] = useState(false)
   const [selectedConversationId, setSelectedConversationId] = useState('')
   const [chatbotTranscript, setChatbotTranscript] = useState(null)
   const [chatbotTranscriptLoading, setChatbotTranscriptLoading] = useState(false)
   const [chatbotTranscriptError, setChatbotTranscriptError] = useState('')
   const [chatbotTranscriptDrawerOpen, setChatbotTranscriptDrawerOpen] = useState(false)
+  const [clockStr, setClockStr] = useState(() =>
+    new Date().toLocaleTimeString('en-GB', { hour12: false })
+  )
 
   const [inventoryReportsByPharmacy, setInventoryReportsByPharmacy] = useState([])
   const [inventoryReportsLoading, setInventoryReportsLoading] = useState(false)
   const [inventoryReportSearch, setInventoryReportSearch] = useState('')
 
   const [overview, setOverview] = useState(null)
+  const [mediBotOverview, setMediBotOverview] = useState(null)
   const [requestsByStatus, setRequestsByStatus] = useState({})
+  /** From `GET .../admin/dashboard/data/` (verification_queue + aliases); same rows as dedicated queue endpoint. */
+  const [dashboardVerificationQueue, setDashboardVerificationQueue] = useState(null)
+  /** One `GET .../pharmacist/<id>/ranking-summary/` after dashboard load — same `leaderboard` table as pharmacy portal. */
+  const [adminPortalRankingSummary, setAdminPortalRankingSummary] = useState(null)
+  const [adminPortalRankingSummaryLoading, setAdminPortalRankingSummaryLoading] = useState(false)
+  const [hasHydratedFullDashboard, setHasHydratedFullDashboard] = useState(false)
 
   const normalizeList = (data) => {
     if (Array.isArray(data)) return data
@@ -248,45 +321,663 @@ function AdminDashboard() {
     return []
   }
 
-  const fetchDashboard = async ({ silent = false } = {}) => {
-    if (silent) setRefreshing(true)
-    else setLoading(true)
+  const fetchDashboard = async ({ silent = false, full = false } = {}) => {
+    if (!silent && adminDashboardInitialLoadPromise) {
+      return adminDashboardInitialLoadPromise
+    }
+    if (!silent) {
+      setLoading(true)
+    }
     setError('')
-    try {
-      const data = await getAdminDashboardData(100)
-      const pharmacyList = normalizeList(data?.lists?.pharmacies || [])
-      const pharmacistList = normalizeList(data?.lists?.pharmacists || [])
-      const requests = normalizeList(data?.lists?.patient_requests || [])
-      const reservations = normalizeList(data?.lists?.reservations || [])
 
-      setPharmacies(pharmacyList)
-      setPharmacists(pharmacistList)
-      setAllRequests(requests)
-      setAllReservations(reservations)
-      setOverview(data?.overview || null)
-      setRequestsByStatus(data?.breakdown?.requests_by_status || {})
-      const regSum = data?.registry?.summary || data?.breakdown?.pharmacy_registry
-      setRegistrySummary(regSum && typeof regSum === 'object' ? regSum : null)
-      getAdminSearchVolumeAnalytics(30)
-        .then((vol) => setSearchVolumeAnalytics(vol))
-        .catch(() => setSearchVolumeAnalytics(null))
-    } catch (err) {
-      setError(err?.message || 'Failed to load admin dashboard data.')
+    const run = async () => {
+      try {
+        /** Core lists + overview — do not block UI on MediBot / widgets (they are often slower). */
+        const data = await getAdminDashboardData(
+          full ? ADMIN_DASHBOARD_FULL_LIST_LIMIT : ADMIN_DASHBOARD_INITIAL_LIST_LIMIT,
+          full ? ADMIN_DASHBOARD_FULL_VERIFICATION_LIMIT : ADMIN_DASHBOARD_INITIAL_VERIFICATION_LIMIT
+        )
+        const pharmacyList = normalizeList(data?.lists?.pharmacies || [])
+        const pharmacistList = normalizeList(data?.lists?.pharmacists || [])
+        const requests = normalizeList(data?.lists?.patient_requests || [])
+        const reservations = normalizeList(data?.lists?.reservations || [])
+
+        setPharmacies(pharmacyList)
+        setPharmacists(pharmacistList)
+        setAllRequests(requests)
+        setAllReservations(reservations)
+        setOverview(data?.overview || null)
+        setRequestsByStatus(data?.breakdown?.requests_by_status || {})
+        setDashboardVerificationQueue(extractDashboardVerificationQueue(data))
+
+        const regBase = data?.registry?.summary || data?.breakdown?.pharmacy_registry
+        let regSum = null
+        if (regBase && typeof regBase === 'object') {
+          regSum = { ...regBase }
+          const hasPendingField =
+            regSum.pending_review != null ||
+            regSum.pending != null ||
+            regSum.pending_count != null ||
+            regSum.reg_pending != null
+          const rpc = data?.registry?.pending_count
+          if (!hasPendingField && rpc != null && Number.isFinite(Number(rpc))) {
+            regSum.pending_review = Number(rpc)
+          }
+        }
+        setRegistrySummary(regSum)
+
+        if (full) {
+          setAdminPortalRankingSummary(null)
+          setAdminPortalRankingSummaryLoading(true)
+          const firstRankSummaryPharmacistId = pharmacistList
+            .map((p) => p?.pharmacist_id ?? p?.id)
+            .find((id) => id != null && String(id).trim() !== '')
+          if (firstRankSummaryPharmacistId) {
+            withTimeout(
+              getPharmacistRankingSummary(String(firstRankSummaryPharmacistId), {
+                credentials: 'include'
+              }),
+              OPTIONAL_ADMIN_FETCH_TIMEOUT_MS
+            )
+              .then((payload) => {
+                if (payload && typeof payload === 'object') setAdminPortalRankingSummary(payload)
+                else setAdminPortalRankingSummary(null)
+              })
+              .catch(() => setAdminPortalRankingSummary(null))
+              .finally(() => setAdminPortalRankingSummaryLoading(false))
+          } else {
+            setAdminPortalRankingSummary(null)
+            setAdminPortalRankingSummaryLoading(false)
+          }
+        }
+
+        if (full) {
+          getAdminSearchVolumeAnalytics(30)
+            .then((vol) => setSearchVolumeAnalytics(vol))
+            .catch(() => setSearchVolumeAnalytics(null))
+        }
+
+        if (!silent) setLoading(false)
+
+        if (full) {
+          const [mediBot, widgetsBundle] = await Promise.all([
+            withTimeout(getAdminMediBotOverview(), OPTIONAL_ADMIN_FETCH_TIMEOUT_MS).catch(() => null),
+            withTimeout(
+              getAdminChatbotDashboardWidgets({ noResponseMinutes: 10 }),
+              OPTIONAL_ADMIN_FETCH_TIMEOUT_MS
+            ).catch(() => null)
+          ])
+          setMediBotOverview(mergeMediBotOverviewWithWidgetsBundle(mediBot, widgetsBundle))
+        }
+        if (full) setHasHydratedFullDashboard(true)
+      } catch (err) {
+        setError(err?.message || 'Failed to load admin dashboard data.')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    if (!silent) {
+      adminDashboardInitialLoadPromise = run()
+      try {
+        await adminDashboardInitialLoadPromise
+      } finally {
+        adminDashboardInitialLoadPromise = null
+      }
+      return
+    }
+    await run()
+  }
+
+  const exportCurrentViewCsv = () => {
+    const stamp = new Date().toISOString().slice(0, 10)
+    const visiblePharmacyRows = registryTableRows.slice(0, 80)
+    const visiblePharmacists = pharmacists.slice(0, 40)
+    const visibleRequests = allRequests.slice(0, 40)
+    const visibleReservations = allReservations.slice(0, 40)
+    if (activeTab === 'pharmacies') {
+      const rows = visiblePharmacyRows.map((p) => ({
+        Pharmacy: p.__name,
+        City: p.city || p.location_suburb || '—',
+        Type: p.pharmacy_type || p.type || 'Pharmacy',
+        'Medicines listed': p.medicine_count ?? p.medicines_listed_count ?? p.inventory_count ?? '—',
+        Ranking: p.__rank != null ? `#${p.__rank}` : '—',
+        Status: pharmacyRowApiStatus(p)
+      }))
+      return downloadCsv(`pharmacies-visible-${stamp}.csv`, rows)
+    }
+    if (activeTab === 'users') return downloadCsv(`users-visible-${stamp}.csv`, usersList)
+    if (activeTab === 'chatbot' || activeTab === 'chatbot-audit') return downloadCsv(`chatbot-visible-${stamp}.csv`, chatbotLogs)
+    if (activeTab === 'inventory') return downloadCsv(`inventory-visible-${stamp}.csv`, visibleInventoryReports)
+    if (activeTab === 'pharmacists') return downloadCsv(`pharmacists-visible-${stamp}.csv`, visiblePharmacists)
+    if (activeTab === 'requests') return downloadCsv(`requests-visible-${stamp}.csv`, visibleRequests)
+    if (activeTab === 'reservations') return downloadCsv(`reservations-visible-${stamp}.csv`, visibleReservations)
+    if (activeTab === 'verification-queue') return downloadCsv(`verification-queue-visible-${stamp}.csv`, dashboardVerificationQueue || [])
+    return false
+  }
+
+  const exportCurrentViewReportPdf = async () => {
+    const now = new Date()
+    const visiblePharmacyRows = registryTableRows.slice(0, 80)
+    const visiblePharmacists = pharmacists.slice(0, 40)
+    const visibleRequests = allRequests.slice(0, 40)
+    const visibleReservations = allReservations.slice(0, 40)
+    const title = pageHead?.title || 'Admin Dashboard'
+    const countByTab = {
+      overview:
+        requestActivitySeries.counts.length +
+        topMedicineTopics.length +
+        topRegionTopics.length +
+        overviewRecentRegistrationRows.length,
+      'layer1-system': requestActivitySeries.counts.length + topRegionTopics.length,
+      pharmacies: visiblePharmacyRows.length,
+      users: usersList.length,
+      'chatbot-audit': chatbotLogs.length,
+      chatbot: chatbotLogs.length,
+      inventory: visibleInventoryReports.length,
+      pharmacists: visiblePharmacists.length,
+      requests: visibleRequests.length,
+      reservations: visibleReservations.length,
+      'verification-queue': (dashboardVerificationQueue || []).length,
+      'algorithm-stewardship': 4,
+      'weight-tuning': 4,
+      'ranking-profiles': 4,
+      'content-policy': 1
+    }
+    const visibleCount = countByTab[activeTab] ?? 0
+    const pendingRate =
+      requestStats.total > 0 ? `${((requestStats.pending / requestStats.total) * 100).toFixed(1)}%` : '0.0%'
+    const respondedCount = Math.max(0, (requestStats.total || 0) - (requestStats.pending || 0))
+    const respondedRate =
+      requestStats.total > 0 ? `${((respondedCount / requestStats.total) * 100).toFixed(1)}%` : '0.0%'
+    const flaggedChats = chatbotLogs.filter(chatbotLogRowNeedsReview).length
+    const monthlyPeak = Math.max(...requestActivitySeries.counts, 0)
+    const monthlyAvg =
+      requestActivitySeries.counts.length > 0
+        ? Math.round(requestActivitySeries.counts.reduce((s, n) => s + n, 0) / requestActivitySeries.counts.length)
+        : 0
+    const monthlyLatest = requestActivitySeries.counts[requestActivitySeries.counts.length - 1] || 0
+    const trendDirection =
+      monthlyLatest > monthlyAvg ? 'above average' : monthlyLatest < monthlyAvg ? 'below average' : 'at average'
+    const topRegion = topRegionTopics[0]?.name || 'N/A'
+    const topMedicine = topMedicineTopics[0]?.name || 'N/A'
+    const pendingVerification = registryMetrics.pending || 0
+    const verifiedPharmacies = registryMetrics.verified || 0
+    const suspendedPharmacies = registryMetrics.suspended || 0
+
+    const l1 = mediBotOverview?.layer1_system_health
+    const l2 = mediBotOverview?.layer2_pharmacy_governance
+    const l3 = mediBotOverview?.layer3_algorithm
+    const cleanTopic = (raw) =>
+      String(raw || '')
+        .replace(/:+\s*$/, '')
+        .trim()
+    const activeUsersDisplay =
+      l1?.active_users != null && Number.isFinite(Number(l1.active_users))
+        ? Number(l1.active_users).toLocaleString()
+        : Number.isFinite(Number(usersApproxCount))
+          ? Number(usersApproxCount).toLocaleString()
+          : '—'
+    const avgResponseDisplay =
+      l1?.avg_response_time_ms != null
+        ? `${(Number(l1.avg_response_time_ms) / 1000).toFixed(1)}s`
+        : systemStatus.avgResponse || '—'
+    const uptimeDisplay =
+      l1?.uptime_pct_this_month != null
+        ? `${Number(l1.uptime_pct_this_month).toFixed(1)}%`
+        : systemStatus.uptimePct || '—'
+    const queuePreview = (dashboardVerificationQueue || [])
+      .slice(0, 5)
+      .map((r, i) => `${i + 1}. ${r.name || r.pharmacy_name || r.__name || 'Unknown pharmacy'}`)
+      .join('\n')
+    const rankingPreview = overviewPharmacyMatchRows
+      .slice(0, 7)
+      .map((p) => {
+        const rank = p.__displayRank != null ? `#${p.__displayRank}` : '—'
+        const name = p.__name || 'Unknown pharmacy'
+        const locality = p.location_suburb || p.city || p.address || 'Location unavailable'
+        const score = p.__score != null ? ` · ${p.__score}` : ''
+        return `${rank} ${name} · ${locality}${score}`
+      })
+      .join('\n')
+    const recentRegs = overviewRecentRegistrationRows
+      .slice(0, 7)
+      .map((r) => `${r.name} · ${r.type} · ${r.status}`)
+      .join('\n')
+    const auditPreview = chatbotLogs
+      .filter(chatbotLogRowNeedsReview)
+      .slice(0, 5)
+      .map((r, i) => {
+        const text = String(
+          r.title || r.summary || r.last_message_preview || r.preview || r.last_message || 'Flagged conversation'
+        ).replace(/\s+/g, ' ')
+        return `${i + 1}. ${text.slice(0, 180)}${text.length > 180 ? '…' : ''}`
+      })
+      .join('\n')
+    const topMeds = topMedicineTopics
+      .slice(0, 10)
+      .map((m) => `${cleanTopic(m.name)}: ${m.c}`)
+      .join('\n')
+    const topRegions = topRegionTopics.slice(0, 10).map((r) => `${r.name}: ${r.c}`).join('\n')
+    const weightRows = [
+      ['Price competitiveness', Number(l3?.standard_weights?.price ?? 35)],
+      ['Distance / travel time', Number(l3?.standard_weights?.distance ?? 25)],
+      ['Patient rating', Number(l3?.standard_weights?.rating ?? 25)],
+      ['Stock reliability', Number(l3?.standard_weights?.stock ?? 15)]
+    ]
+      .map(([k, v]) => `${k}: ${Number.isFinite(v) ? v : 0}%`)
+      .join('\n')
+
+    const sections = activeTab === 'overview' ? [
+      {
+        head: 'System Health — Operational Overview',
+        body:
+          `Active users: ${activeUsersDisplay}\nRequests today: ${adminRequestsToday}\nAvg response: ${avgResponseDisplay}\nActive pharmacies: ${registryMetrics.total}\nUptime (month): ${uptimeDisplay}\n\n` +
+          `Pending requests: ${requestStats.pending} of ${requestStats.total} (${pendingRate})\nResponded requests: ${respondedCount} (${respondedRate})`
+      },
+      {
+        head: 'Request Volume and Geography',
+        body:
+          `Top searched medicines:\n${topMeds || 'N/A'}\n\nTop regions by request:\n${topRegions || 'N/A'}\n\n` +
+          `Trend insight: latest bucket ${monthlyLatest}, average ${monthlyAvg}, peak ${monthlyPeak}.`
+      },
+      {
+        head: 'Pharmacy Governance — Trust and Accountability',
+        body:
+          `Awaiting verification: ${pendingVerification}\nVerified: ${verifiedPharmacies}\nSuspended: ${suspendedPharmacies}\n` +
+          `Governance source: ${(dashboardVerificationQueue || []).length > 0 ? 'dashboard queue + registry state' : 'registry state'}\n\n` +
+          `Verification queue preview:\n${queuePreview || 'No pending queue rows.'}`
+      },
+      {
+        head: 'Algorithm Stewardship — Ranking Weights',
+        body:
+          `Active ranking profile: ${l3?.active_ranking_profile || l3?.active_ranking_profile_label || 'urban_default'}\n` +
+          `${weightRows}\n\nTop pharmacy ranking preview:\n${rankingPreview || 'No ranking rows available.'}`
+      },
+      {
+        head: 'Chatbot Audit — Flagged Conversations',
+        body:
+          `Flagged conversations (current snapshot): ${flaggedChats}\n` +
+          `Audit readiness: ${flaggedChats > 0 ? 'Review required' : 'No immediate review backlog'}\n\n` +
+          `Preview:\n${auditPreview || 'No flagged conversations in current page.'}`
+      },
+      {
+        head: 'Recent Registrations and Action Plan',
+        body:
+          `Recent registrations:\n${recentRegs || 'N/A'}\n\n` +
+          'Action plan:\n1) Clear pending verification queue daily.\n2) Reduce pending request ratio by prioritizing oldest cases.\n3) Track top medicine demand for stock planning.\n4) Review flagged chatbot threads and close safety actions.\n5) Re-generate this report in 24 hours to compare trend movement.'
+      }
+    ] : [
+      {
+        head: 'Executive Summary',
+        body: `This report covers "${title}" with ${visibleCount} visible data points captured at export time. Current system load shows ${requestStats.total} total requests, ${requestStats.pending} pending (${pendingRate}), and ${respondedCount} responded (${respondedRate}). The data reflects the live admin dashboard state at generation time and should be used as a decision-support snapshot for operations, demand planning, and safety governance.`
+      },
+      {
+        head: 'Operations Performance',
+        body: `Request trend monitoring indicates a peak bucket of ${monthlyPeak.toLocaleString()} requests in the current view window, with a current-period value of ${monthlyLatest.toLocaleString()} (${trendDirection} against an average of ${monthlyAvg.toLocaleString()}). Pending pharmacy verifications are ${pendingVerification}, with ${verifiedPharmacies} verified and ${suspendedPharmacies} suspended in the registry totals. Throughput focus should prioritize same-day handling for newly queued verification entries and aging pending requests to avoid compounding backlog risk.`
+      },
+      {
+        head: 'Geographic and Demand Signals',
+        body: `Highest observed regional demand appears in ${topRegion}. Top medicine search interest is currently "${topMedicine}". This combination suggests immediate inventory planning opportunities in high-volume corridors, including demand-led stocking of the top searched medicines and branch-level availability checks where demand concentration is highest. If this demand pattern persists in upcoming snapshots, consider temporary stock buffers and targeted pharmacy outreach in the top region.`
+      },
+      {
+        head: 'Risk and Quality Monitoring',
+        body: `Chatbot monitoring currently flags ${flaggedChats} conversation(s). This indicates active safety-review workload and a need for structured triage. Recommended quality workflow: (1) review high-risk conversations first, (2) classify issue types (clinical ambiguity, dosage guidance, emergency intent), (3) document remediation actions, and (4) confirm policy alignment in subsequent conversation samples.`
+      },
+      {
+        head: 'Priority Action Plan (Next 7 Days)',
+        body:
+          '1) Reduce pending request ratio by focusing on oldest open requests first and enforcing response SLA ownership by shift.\n2) Clear verification backlog through daily queue triage with explicit approval/suspension decision logs.\n3) Review top-demand medicine availability in high-volume regions and monitor stockout exceptions daily.\n4) Run chatbot flagged-conversation review twice weekly and track issue recurrence trends.\n5) Re-run this report after interventions and compare trend deltas to validate impact.'
+      },
+      {
+        head: 'System Outlook (Next Reporting Window)',
+        body:
+          'If pending queues are reduced and verification throughput improves, system responsiveness and patient confidence should improve in the next cycle. If pending ratios remain elevated, risk shifts toward delayed fulfillment and user churn in peak-demand regions. Maintain daily operational review for requests, weekly governance review for verification, and continuous chatbot safety audit to stabilize service quality.'
+      }
+    ]
+
+    const sectionsToMarkdown = (rows) =>
+      rows
+        .map((s) => `## ${String(s?.head || 'Section').trim()}\n\n${String(s?.body || '').trim()}`)
+        .join('\n\n')
+
+    const normalizeReportMarkdown = (text) => {
+      const src = String(text || '').replace(/\r\n?/g, '\n').trim()
+      if (!src) return ''
+      const hasHeading = /^#{1,6}\s+\S+/m.test(src)
+      const hasList = /^(?:\s*[-*]\s+\S+|\s*\d+\.\s+\S+)/m.test(src)
+      const hasTable = /^\s*\|.+\|\s*$/m.test(src)
+      if (hasHeading && (hasList || hasTable)) return src
+      return [
+        '## Executive Summary',
+        '',
+        src,
+        '',
+        '## Key Findings',
+        '',
+        '- Review key KPI movements from this reporting window.',
+        '- Confirm backlog, verification, and safety trends.',
+        '',
+        '## Actions',
+        '',
+        '- Prioritize highest-risk and oldest pending items first.',
+        '- Re-run this report after interventions and compare deltas.'
+      ].join('\n')
+    }
+
+    let aiNarrative = ''
+    try {
+      const snapshot = {
+        active_tab: activeTab,
+        title,
+        visible_count: visibleCount,
+        kpis: {
+          requests_total: requestStats.total,
+          requests_pending: requestStats.pending,
+          requests_responded: respondedCount,
+          pending_rate: pendingRate,
+          avg_response: avgResponseDisplay,
+          uptime: uptimeDisplay,
+          active_users: activeUsersDisplay,
+          pharmacies_total: registryMetrics.total,
+          pharmacies_pending_verification: pendingVerification,
+          chatbot_flagged: flaggedChats
+        },
+        trends: {
+          latest: monthlyLatest,
+          average: monthlyAvg,
+          peak: monthlyPeak,
+          top_region: topRegion,
+          top_medicine: topMedicine
+        },
+        previews: {
+          verification_queue: queuePreview,
+          ranking: rankingPreview,
+          chatbot_audit: auditPreview,
+          recent_registrations: recentRegs
+        }
+      }
+      const ai = await generateAdminReportNarrative({
+        report_type: activeTab === 'overview' ? 'system_overview' : 'tab_snapshot',
+        title,
+        timeframe: activityRange === '30d' ? 'last_30_days' : 'last_7_days',
+        tone: 'executive',
+        dashboard_snapshot: snapshot,
+        custom_instruction:
+          'Return STRICT Markdown only (no HTML). Include these sections exactly: ## Executive Summary, ## Key Findings, ## KPI Snapshot, ## Risks, ## Actions. Under Key Findings include at least 5 bullet points. Include a Markdown table under KPI Snapshot with columns | Metric | Value | Trend |.'
+      })
+      aiNarrative = normalizeReportMarkdown(ai?.narrative)
+    } catch {
+      aiNarrative = ''
+    }
+
+    const readCssVar = (name, fallback) => {
+      try {
+        const root = document?.documentElement
+        if (!root) return fallback
+        const val = getComputedStyle(root).getPropertyValue(name).trim()
+        return val || fallback
+      } catch {
+        return fallback
+      }
+    }
+    const toRgb = (value, fallback) => {
+      const s = String(value || '').trim()
+      const hex = s.match(/^#([0-9a-f]{6}|[0-9a-f]{3})$/i)
+      if (hex) {
+        let h = hex[1]
+        if (h.length === 3) h = h.split('').map((c) => c + c).join('')
+        return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]
+      }
+      const rgb = s.match(/rgba?\((\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i)
+      if (rgb) return [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])]
+      return fallback
+    }
+    const theme = {
+      brand: toRgb(readCssVar('--teal-dark', '#0f766e'), [15, 118, 110]),
+      accent: toRgb(readCssVar('--teal', '#0d9488'), [13, 148, 136]),
+      text: toRgb(readCssVar('--text', '#1e293b'), [30, 41, 59]),
+      muted: toRgb(readCssVar('--muted', '#64748b'), [100, 116, 139]),
+      border: toRgb(readCssVar('--border', '#e2e8f0'), [226, 232, 240]),
+      light: toRgb(readCssVar('--teal-light', '#f0fdfa'), [240, 253, 250])
+    }
+
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' })
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const pageHeight = doc.internal.pageSize.getHeight()
+    const pageBottom = pageHeight - 44
+    const margin = 42
+    const contentWidth = pageWidth - margin * 2
+    let y = margin
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(18)
+    doc.setTextColor(theme.brand[0], theme.brand[1], theme.brand[2])
+    doc.text(title, margin, y)
+    y += 20
+    doc.setDrawColor(theme.border[0], theme.border[1], theme.border[2])
+    doc.line(margin, y - 8, margin + contentWidth, y - 8)
+    doc.setFontSize(10)
+    doc.setTextColor(theme.muted[0], theme.muted[1], theme.muted[2])
+    doc.text(`Generated: ${now.toLocaleString()}`, margin, y)
+    y += 18
+    doc.setTextColor(theme.text[0], theme.text[1], theme.text[2])
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(12)
+    doc.text('AI-written detailed report', margin, y)
+    y += 18
+
+    const writeWrapped = (text, fontSize = 11, lineGap = 14, options = {}) => {
+      const indent = Number(options.indent) || 0
+      const isBold = options.bold === true
+      const color = Array.isArray(options.color) ? options.color : theme.text
+      doc.setFont('helvetica', isBold ? 'bold' : 'normal')
+      doc.setTextColor(color[0], color[1], color[2])
+      doc.setFontSize(fontSize)
+      const lines = doc.splitTextToSize(text, Math.max(120, contentWidth - indent))
+      for (const line of lines) {
+        if (y > pageBottom) {
+          doc.addPage()
+          y = margin
+        }
+        doc.text(line, margin + indent, y)
+        y += lineGap
+      }
+    }
+
+    const cellTextFromMarked = (cell) => {
+      if (cell == null) return ''
+      if (typeof cell === 'string') return cell.trim()
+      if (typeof cell.text === 'string') return cell.text.trim()
+      if (typeof cell.raw === 'string') return cell.raw.trim()
+      return String(cell).trim()
+    }
+
+    const writeMarkdownTable = (tableToken) => {
+      const headerCellsRaw = Array.isArray(tableToken?.header) ? tableToken.header : []
+      const bodyRowsRaw = Array.isArray(tableToken?.rows) ? tableToken.rows : []
+      const headerCells = headerCellsRaw.map((c) => cellTextFromMarked(c))
+      const bodyRows = bodyRowsRaw.map((row) =>
+        (Array.isArray(row) ? row : []).map((c) => cellTextFromMarked(c))
+      )
+      const colCount = Math.max(
+        headerCells.length,
+        bodyRows.reduce((m, row) => Math.max(m, row.length), 0)
+      )
+      if (!colCount) return
+
+      const usableWidth = contentWidth
+      const colGap = 8
+      const colWidth = (usableWidth - (colCount - 1) * colGap) / colCount
+      const drawRow = (rowValues, bold = false) => {
+        const normalized = Array.from({ length: colCount }, (_, i) => String(rowValues[i] || '').trim())
+        const wrappedByCol = normalized.map((txt) => doc.splitTextToSize(txt || ' ', Math.max(60, colWidth - 4)))
+        const rowLineCount = Math.max(1, ...wrappedByCol.map((lines) => lines.length))
+        const rowHeight = rowLineCount * 12 + 8
+        if (y + rowHeight > pageBottom) {
+          doc.addPage()
+          y = margin
+        }
+
+        if (bold) {
+          doc.setFillColor(theme.light[0], theme.light[1], theme.light[2])
+          doc.rect(margin - 2, y - 2, usableWidth + 4, rowHeight, 'F')
+        }
+        doc.setDrawColor(theme.border[0], theme.border[1], theme.border[2])
+        doc.rect(margin - 2, y - 2, usableWidth + 4, rowHeight)
+        doc.setFont('helvetica', bold ? 'bold' : 'normal')
+        doc.setFontSize(10)
+        doc.setTextColor(theme.text[0], theme.text[1], theme.text[2])
+        for (let ci = 0; ci < colCount; ci += 1) {
+          const x = margin + ci * (colWidth + colGap)
+          const lines = wrappedByCol[ci]
+          doc.text(lines, x, y + 10)
+        }
+        y += rowHeight
+      }
+
+      drawRow(headerCells, true)
+      y += 2
+      for (const row of bodyRows) drawRow(row, false)
+      y += 6
+    }
+
+    const writeMarkdown = (markdownText) => {
+      const source = String(markdownText || '').replace(/\r\n?/g, '\n').trim()
+      if (!source) return
+      let tokens = []
+      try {
+        tokens = marked.lexer(source)
+      } catch {
+        writeWrapped(source, 11, 14)
+        return
+      }
+      for (const token of tokens) {
+        if (!token || typeof token !== 'object') continue
+        if (token.type === 'space') {
+          y += 6
+          continue
+        }
+        if (token.type === 'heading') {
+          const level = Number(token.depth) || 2
+          const size = level <= 1 ? 16 : level === 2 ? 14 : 12
+          writeWrapped(String(token.text || '').trim(), size, 16, { bold: true, color: theme.brand })
+          y += 4
+          doc.setDrawColor(theme.border[0], theme.border[1], theme.border[2])
+          doc.line(margin, y - 3, margin + contentWidth, y - 3)
+          y += 5
+          continue
+        }
+        if (token.type === 'paragraph') {
+          writeWrapped(String(token.text || '').trim(), 11, 15)
+          y += 6
+          continue
+        }
+        if (token.type === 'list') {
+          const items = Array.isArray(token.items) ? token.items : []
+          for (let i = 0; i < items.length; i += 1) {
+            const item = items[i]
+            const marker = token.ordered ? `${i + 1}. ` : '• '
+            writeWrapped(`${marker}${String(item?.text || '').trim()}`, 11, 14, { indent: 10 })
+          }
+          y += 5
+          continue
+        }
+        if (token.type === 'table') {
+          writeMarkdownTable(token)
+          continue
+        }
+        if (token.type === 'blockquote') {
+          const quoteLines = String(token.text || '')
+            .split('\n')
+            .map((ln) => ln.trim())
+            .filter(Boolean)
+          doc.setDrawColor(201, 210, 224)
+          const qTop = y - 2
+          for (const ln of quoteLines) writeWrapped(ln, 11, 14, { indent: 16, color: theme.muted })
+          doc.line(margin + 8, qTop, margin + 8, y - 4)
+          y += 4
+          continue
+        }
+        if (token.type === 'code') {
+          const codeLines = String(token.text || '')
+            .split('\n')
+            .map((ln) => ln.trimEnd())
+          for (const ln of codeLines) writeWrapped(ln || ' ', 10, 12, { indent: 10 })
+          y += 4
+          continue
+        }
+        const raw = String(token.raw || token.text || '').trim()
+        if (raw) writeWrapped(raw, 11, 14)
+      }
+    }
+
+    if (aiNarrative) {
+      writeMarkdown(aiNarrative)
+    } else {
+      writeMarkdown(sectionsToMarkdown(sections))
+    }
+    const pageCount = doc.getNumberOfPages()
+    for (let page = 1; page <= pageCount; page += 1) {
+      doc.setPage(page)
+      doc.setDrawColor(theme.border[0], theme.border[1], theme.border[2])
+      doc.line(margin, 28, margin + contentWidth, 28)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(9)
+      doc.setTextColor(theme.brand[0], theme.brand[1], theme.brand[2])
+      doc.text('MediConnect', margin, 22)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(theme.muted[0], theme.muted[1], theme.muted[2])
+      doc.text(String(title).slice(0, 80), margin + 64, 22)
+      doc.line(margin, pageHeight - 26, margin + contentWidth, pageHeight - 26)
+      doc.setFontSize(9)
+      doc.text(`Page ${page} of ${pageCount}`, pageWidth - margin, pageHeight - 14, { align: 'right' })
+    }
+
+    doc.save(`${activeTab || 'dashboard'}-report-${now.toISOString().slice(0, 10)}.pdf`)
+  }
+
+  const handleExportCsv = () => {
+    setError('')
+    const ok = exportCurrentViewCsv()
+    if (!ok) setError('CSV export is available for data-list pages only.')
+  }
+
+  const handleExportReport = async () => {
+    setError('')
+    setExportBusy(true)
+    try {
+      await exportCurrentViewReportPdf()
+    } catch (e) {
+      setError(e?.message || 'Report export failed')
     } finally {
-      setLoading(false)
-      setRefreshing(false)
+      setExportBusy(false)
     }
   }
 
-  const handleExportRegistry = async () => {
-    setExportBusy(true)
+  const pharmacyRowApiStatus = (p) => {
+    const vs = String(p?.verification_status || p?.status || '').toLowerCase()
+    if (vs === 'suspended') return 'suspended'
+    if (vs === 'pending_review' || vs === 'pending') return 'pending_review'
+    return 'verified'
+  }
+
+  const applyPharmacyRegistryStatus = async (pharmacyId, next) => {
+    if (!pharmacyId) return
+    setPharmacyRegistrySavingId(String(pharmacyId))
     setError('')
     try {
-      await exportAdminPharmaciesRegistry()
+      const patch =
+        next === 'suspended'
+          ? { verification_status: 'suspended', is_active: false }
+          : next === 'pending_review'
+            ? { verification_status: 'pending_review', is_active: true }
+            : { verification_status: 'verified', is_active: true }
+      await updateAdminPharmacy(pharmacyId, patch)
+      await fetchDashboard({ silent: true })
     } catch (e) {
-      setError(e?.message || 'Export failed')
+      setError(e?.message || 'Could not update pharmacy status.')
     } finally {
-      setExportBusy(false)
+      setPharmacyRegistrySavingId(null)
     }
   }
 
@@ -375,40 +1066,56 @@ function AdminDashboard() {
       navigate('/login')
       return
     }
+    dedupedGetAdminMe()
     fetchDashboard()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
-    if (activeTab !== 'audit') return
-    let cancelled = false
-    setAuditLoading(true)
-    setAuditError('')
-    getAdminAuditLogs({ page: auditPage, pageSize: 50 })
-      .then((data) => {
-        if (cancelled) return
-        const results = data?.results ?? data?.items ?? data?.logs ?? (Array.isArray(data) ? data : [])
-        setAuditLogs(Array.isArray(results) ? results : [])
-        const tot = data?.count ?? data?.total
-        setAuditTotal(Number.isFinite(Number(tot)) ? Number(tot) : null)
-      })
-      .catch((e) => {
-        if (!cancelled) setAuditError(e?.message || 'Failed to load audit logs')
-      })
-      .finally(() => {
-        if (!cancelled) setAuditLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [activeTab, auditPage])
+    if (hasHydratedFullDashboard) return
+    const id = setTimeout(() => {
+      fetchDashboard({ silent: true, full: true })
+    }, 450)
+    return () => clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasHydratedFullDashboard])
+
+  useEffect(() => {
+    const id = setInterval(
+      () => setClockStr(new Date().toLocaleTimeString('en-GB', { hour12: false })),
+      1000
+    )
+    return () => clearInterval(id)
+  }, [])
 
   useEffect(() => {
     const t = searchParams.get('tab')
+    const legacy = {
+      chatbot: 'chatbot-audit',
+      'command-center': 'algorithm-stewardship',
+      watchlist: 'overview',
+      'impact-analytics': 'overview',
+      'equity-report': 'overview',
+      'search-analytics': 'overview',
+      'system-health': 'layer1-system',
+      'geographic-heatmap': 'layer1-system',
+      'sla-monitoring': 'layer1-system',
+      'weight-tuning': 'algorithm-stewardship',
+      'ranking-profiles': 'algorithm-stewardship',
+      'content-policy': 'algorithm-stewardship',
+      medicines: 'overview',
+      settings: 'overview',
+      audit: 'overview'
+    }
+    if (t && legacy[t]) {
+      setSearchParams({ tab: legacy[t] }, { replace: true })
+      setActiveTab(legacy[t])
+      return
+    }
     if (t && ADMIN_DASHBOARD_TAB_IDS.has(t)) {
       setActiveTab(t)
     }
-  }, [searchParams])
+  }, [searchParams, setSearchParams])
 
   useEffect(() => {
     const id = setTimeout(() => {
@@ -497,32 +1204,66 @@ function AdminDashboard() {
   }, [activeTab, patientsListPage, patientsListSearch])
 
   useEffect(() => {
-    if (activeTab !== 'chatbot') return
+    if (
+      activeTab !== 'overview' &&
+      activeTab !== 'chatbot' &&
+      activeTab !== 'chatbot-audit' &&
+      activeTab !== 'command-center' &&
+      activeTab !== 'weight-tuning' &&
+      activeTab !== 'ranking-profiles' &&
+      activeTab !== 'content-policy'
+    )
+      return
+    const ac = new AbortController()
     let cancelled = false
+    const deferredForOverview = activeTab === 'overview'
+    const startDelayMs = deferredForOverview ? 800 : 0
     setChatbotLogsLoading(true)
     setChatbotLogsError('')
-    getAdminChatbotLogs({
-      page: chatbotLogsPage,
-      pageSize: ADMIN_LIST_PAGE_SIZE,
-      search: chatbotLogsSearch,
-      sessionId: chatbotLogsSessionFilter
-    })
-      .then((data) => {
-        if (cancelled) return
-        const { results, count } = normalizeAdminPaginatedResponse(data)
-        setChatbotLogs(results)
-        setChatbotLogsTotal(count)
+    const kick = setTimeout(() => {
+      getAdminChatbotLogs({
+        page: activeTab === 'overview' ? 1 : chatbotLogsPage,
+        pageSize: ADMIN_LIST_PAGE_SIZE,
+        search: activeTab === 'overview' ? '' : chatbotLogsSearch,
+        sessionId: activeTab === 'overview' ? '' : chatbotLogsSessionFilter,
+        signal: ac.signal
       })
-      .catch((e) => {
-        if (!cancelled) setChatbotLogsError(e?.message || 'Failed to load chatbot logs')
-      })
-      .finally(() => {
-        if (!cancelled) setChatbotLogsLoading(false)
-      })
+        .then((data) => {
+          if (cancelled) return
+          const { results, count } = normalizeAdminPaginatedResponse(data)
+          setChatbotLogs(results)
+          setChatbotLogsTotal(count)
+        })
+        .catch((e) => {
+          if (cancelled || e?.name === 'AbortError') return
+          setChatbotLogsError(e?.message || 'Failed to load chatbot logs')
+        })
+        .finally(() => {
+          if (ac.signal.aborted) {
+            setChatbotLogsLoading(false)
+            return
+          }
+          if (!cancelled) {
+            setChatbotLogsLoading(false)
+            setChatbotLogsHasLoaded(true)
+          }
+        })
+    }, startDelayMs)
     return () => {
       cancelled = true
+      clearTimeout(kick)
+      ac.abort()
     }
   }, [activeTab, chatbotLogsPage, chatbotLogsSearch, chatbotLogsSessionFilter])
+
+  const openChatbotFromCommandCenter = useCallback(
+    (cid) => {
+      selectTab('chatbot-audit')
+      setSelectedConversationId(String(cid))
+      setChatbotTranscriptDrawerOpen(true)
+    },
+    [selectTab]
+  )
 
   const closeChatbotTranscriptDrawer = useCallback(() => {
     setChatbotTranscriptDrawerOpen(false)
@@ -531,12 +1272,19 @@ function AdminDashboard() {
     setChatbotTranscriptError('')
   }, [])
 
+  const commandCenterTabs = useMemo(
+    () => new Set(['command-center', 'weight-tuning', 'ranking-profiles', 'content-policy']),
+    []
+  )
+
   useEffect(() => {
-    if (activeTab !== 'chatbot') {
+    if (activeTab !== 'chatbot' && activeTab !== 'chatbot-audit') {
       setChatbotTranscriptDrawerOpen(false)
-      setSelectedConversationId('')
       setChatbotTranscript(null)
       setChatbotTranscriptError('')
+      if (!commandCenterTabs.has(activeTab)) {
+        setSelectedConversationId('')
+      }
       return
     }
     if (!selectedConversationId) {
@@ -564,7 +1312,7 @@ function AdminDashboard() {
     return () => {
       cancelled = true
     }
-  }, [activeTab, selectedConversationId])
+  }, [activeTab, selectedConversationId, commandCenterTabs])
 
   useEffect(() => {
     if (!chatbotTranscriptDrawerOpen) return
@@ -640,10 +1388,12 @@ function AdminDashboard() {
     }).length
   }, [allReservations, overview])
 
-  const logout = () => {
+  const logout = async () => {
+    await adminLogoutRequest()
     localStorage.removeItem('token')
     localStorage.removeItem('userRole')
-    navigate('/login')
+    localStorage.removeItem('admin')
+    navigate('/')
   }
 
   const perPharmacyRows = useMemo(() => {
@@ -712,69 +1462,6 @@ function AdminDashboard() {
     return rows
   }, [pharmacies, pharmacists, allReservations, allRequests])
 
-  const attentionCount = useMemo(
-    () => perPharmacyRows.filter((p) => p.needsAttention).length,
-    [perPharmacyRows]
-  )
-
-  const visiblePharmacies = useMemo(() => {
-    const q = pharmacySearch.trim().toLowerCase()
-    let rows = [...perPharmacyRows]
-
-    if (healthFilter === 'attention') rows = rows.filter((p) => p.needsAttention)
-    if (healthFilter === 'healthy') rows = rows.filter((p) => !p.needsAttention)
-
-    if (minRatingFilter !== 'all') {
-      const min = Number(minRatingFilter)
-      rows = rows.filter((p) => p.ratingNum != null && p.ratingNum >= min)
-    }
-
-    if (q) {
-      rows = rows.filter((p) => {
-        const hay = `${p.__name} ${p.address || ''} ${p.location_suburb || ''}`.toLowerCase()
-        return hay.includes(q)
-      })
-    }
-
-    if (sortBy === 'name') {
-      rows.sort((a, b) => String(a.__name).localeCompare(String(b.__name)))
-    } else if (sortBy === 'rating') {
-      rows.sort((a, b) => (b.ratingNum ?? -1) - (a.ratingNum ?? -1))
-    } else if (sortBy === 'requests') {
-      rows.sort((a, b) => b.pendingRequests - a.pendingRequests)
-    } else {
-      rows.sort((a, b) => {
-        const aScore = (a.needsAttention ? 1000 : 0) + a.pendingRequests + a.activeReservations
-        const bScore = (b.needsAttention ? 1000 : 0) + b.pendingRequests + b.activeReservations
-        return bScore - aScore
-      })
-    }
-
-    return rows.filter((p) => {
-      const hay = `${p.__name} ${p.address || ''} ${p.location_suburb || ''}`.toLowerCase()
-      return hay.includes(q) || !q
-    })
-  }, [perPharmacyRows, pharmacySearch, healthFilter, minRatingFilter, sortBy])
-
-  useEffect(() => {
-    if (!visiblePharmacies.length) {
-      setSelectedPharmacyId('')
-      return
-    }
-    const exists = visiblePharmacies.some((p) => String(p.__id) === String(selectedPharmacyId))
-    if (!selectedPharmacyId || !exists) {
-      setSelectedPharmacyId(String(visiblePharmacies[0].__id))
-    }
-  }, [visiblePharmacies, selectedPharmacyId])
-
-  const selectedPharmacy = useMemo(() => {
-    if (!visiblePharmacies.length) return null
-    return (
-      visiblePharmacies.find((p) => String(p.__id) === String(selectedPharmacyId)) ||
-      visiblePharmacies[0]
-    )
-  }, [visiblePharmacies, selectedPharmacyId])
-
   const getRequestDayKey = (req) => {
     const raw = req?.created_at || req?.submitted_at || req?.updated_at
     if (!raw) return null
@@ -782,6 +1469,40 @@ function AdminDashboard() {
     if (Number.isNaN(date.getTime())) return null
     return date.toISOString().slice(0, 10)
   }
+
+  const mergedSearchVolume = useMemo(() => {
+    const w = mediBotOverview?.widgets?.search_volume
+    const a = searchVolumeAnalytics && typeof searchVolumeAnalytics === 'object' ? searchVolumeAnalytics : null
+    if (!w || typeof w !== 'object') return a
+
+    /** Dedicated `/admin/analytics/search-volume/` payload should win over `widgets.search_volume` when populated. */
+    const pickNonEmptyArray = (fromAnalytics, ...fromWidget) => {
+      if (Array.isArray(fromAnalytics) && fromAnalytics.length > 0) return fromAnalytics
+      for (const cand of fromWidget) {
+        if (Array.isArray(cand) && cand.length > 0) return cand
+      }
+      return Array.isArray(fromAnalytics) ? fromAnalytics : fromWidget.find((x) => Array.isArray(x))
+    }
+
+    const numOr = (primary, ...fallbacks) => {
+      if (primary != null && Number.isFinite(Number(primary))) return Number(primary)
+      for (const f of fallbacks) {
+        if (f != null && Number.isFinite(Number(f))) return Number(f)
+      }
+      return undefined
+    }
+
+    return {
+      ...a,
+      days: a?.days ?? w.days,
+      requests_by_day: pickNonEmptyArray(a?.requests_by_day, w.requests_by_day, w.by_day),
+      top_medicines: pickNonEmptyArray(a?.top_medicines, w.top_medicines, w.top_searches),
+      top_regions: pickNonEmptyArray(a?.top_regions, w.top_regions, w.by_region),
+      total_requests_in_window: numOr(a?.total_requests_in_window, w.total_requests_in_window),
+      zero_result_requests: numOr(a?.zero_result_requests, w.zero_result_requests),
+      zero_result_rate: numOr(a?.zero_result_rate, w.zero_result_rate)
+    }
+  }, [mediBotOverview, searchVolumeAnalytics])
 
   const requestActivitySeries = useMemo(() => {
     const days = activityRange === '30d' ? 30 : 7
@@ -800,7 +1521,7 @@ function AdminDashboard() {
         : dt.toLocaleDateString(undefined, { weekday: 'narrow' })
     }
 
-    const byDay = searchVolumeAnalytics?.requests_by_day
+    const byDay = mergedSearchVolume?.requests_by_day
     if (Array.isArray(byDay) && byDay.length > 0) {
       const map = new Map()
       byDay.forEach((row) => {
@@ -823,17 +1544,29 @@ function AdminDashboard() {
     })
     const max = Math.max(...counts, 1)
     return { labels, counts, max, labelShort, source: 'local' }
-  }, [allRequests, activityRange, searchVolumeAnalytics])
+  }, [allRequests, activityRange, mergedSearchVolume])
 
-  const usersApproxCount = useMemo(() => {
-    if (overview && typeof overview === 'object' && overview.total_patients != null) {
-      return Number(overview.total_patients) || 0
-    }
+  const platformUsersCount = useMemo(() => {
     if (overview && typeof overview === 'object' && overview.total_users != null) {
       return Number(overview.total_users) || 0
     }
+    if (usersListTotal != null) return Number(usersListTotal) || 0
+    return 0
+  }, [overview, usersListTotal])
+
+  const platformSessionsCount = useMemo(() => {
+    if (overview && typeof overview === 'object' && overview.total_patients != null) {
+      return Number(overview.total_patients) || 0
+    }
+    if (patientsListTotal != null) return Number(patientsListTotal) || 0
+    return 0
+  }, [overview, patientsListTotal])
+
+  const usersApproxCount = useMemo(() => {
+    if (platformUsersCount > 0) return platformUsersCount
+    if (platformSessionsCount > 0) return platformSessionsCount
     return pharmacists.length + allRequests.length
-  }, [overview, pharmacists.length, allRequests.length])
+  }, [platformUsersCount, platformSessionsCount, pharmacists.length, allRequests.length])
 
   const pharmacyRegistryCount =
     overview?.registered_pharmacies ?? overview?.total_pharmacies ?? pharmacies.length
@@ -842,23 +1575,8 @@ function AdminDashboard() {
   const reservationsTotal = overview?.total_reservations ?? allReservations.length
 
   const topMedicineTopics = useMemo(() => {
-    const apiTop = searchVolumeAnalytics?.top_medicines
-    if (Array.isArray(apiTop) && apiTop.length > 0) {
-      const rows = apiTop
-        .map((item) => {
-          const name = String(
-            item?.medicine ?? item?.name ?? item?.label ?? item?.query ?? ''
-          ).trim()
-          const c = Number(item?.count ?? item?.searches ?? item?.total ?? 0)
-          return name ? { name, c: Number.isFinite(c) ? c : 0 } : null
-        })
-        .filter(Boolean)
-      const max = rows.length ? Math.max(...rows.map((r) => r.c)) : 1
-      return rows.slice(0, 10).map((r) => ({
-        ...r,
-        widthPct: Math.min(100, Math.round((r.c / max) * 100))
-      }))
-    }
+    const fromAnalytics = topMedicineBarRowsFromSearchVolume(mergedSearchVolume?.top_medicines)
+    if (fromAnalytics) return fromAnalytics
     const map = new Map()
     allRequests.forEach((r) => {
       const names = Array.isArray(r.medicine_names)
@@ -875,127 +1593,35 @@ function AdminDashboard() {
     const entries = [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5)
     const max = entries.length ? entries[0][1] : 1
     return entries.map(([name, c]) => ({ name, c, widthPct: Math.min(100, Math.round((c / max) * 100)) }))
-  }, [allRequests, searchVolumeAnalytics])
+  }, [allRequests, mergedSearchVolume])
 
-  /** Patient requests scoped to catalogue pharmacy filter (same field matching as pharmacy focus). */
-  const catalogueRequestsForPharmacy = useMemo(() => {
-    if (!cataloguePharmacyFilter || cataloguePharmacyFilter === 'all') {
-      return allRequests
-    }
-    const ph = pharmacies.find((p) => String(p.pharmacy_id ?? p.id) === String(cataloguePharmacyFilter))
-    if (!ph) return []
-    const norm = (v) => String(v || '').trim().toLowerCase()
-    const keys = new Set(
-      [norm(ph.pharmacy_id), norm(ph.id), norm(ph.pharmacy_name), norm(ph.name)].filter(Boolean)
-    )
-    return allRequests.filter((r) => {
-      const fields = ['pharmacy_id', 'pharmacy', 'pharmacy_name', 'best_pharmacy_name']
-      if (fields.some((f) => keys.has(norm(r?.[f])))) return true
-      if (Array.isArray(r.pharmacy_names)) {
-        return r.pharmacy_names.some((n) => keys.has(norm(n)))
-      }
-      return false
-    })
-  }, [allRequests, pharmacies, cataloguePharmacyFilter])
-
-  /** Unique medicines from scoped requests + platform search analytics when showing all pharmacies. */
-  const medicineCatalogueRows = useMemo(() => {
-    const byKey = new Map()
-    const ensure = (k, displayName) => {
-      if (!byKey.has(k)) {
-        byKey.set(k, {
-          key: k,
-          name: displayName || k,
-          requestMentions: 0,
-          analyticsSearches: null
-        })
-      }
-      return byKey.get(k)
-    }
-    const showAnalytics = !cataloguePharmacyFilter || cataloguePharmacyFilter === 'all'
-    const apiTop = showAnalytics ? searchVolumeAnalytics?.top_medicines : null
-    if (Array.isArray(apiTop)) {
-      apiTop.forEach((item) => {
-        const name = String(item?.medicine ?? item?.name ?? item?.label ?? item?.query ?? '').trim()
-        if (!name) return
-        const k = name.toLowerCase()
-        const row = ensure(k, name)
-        const ac = Number(item?.count ?? item?.searches ?? item?.total ?? 0)
-        if (Number.isFinite(ac)) row.analyticsSearches = ac
+  const topRegionTopics = useMemo(() => {
+    const apiTop = mergedSearchVolume?.top_regions
+    if (!Array.isArray(apiTop) || apiTop.length === 0) return []
+    const rows = apiTop
+      .map((item) => {
+        const label = String(
+          item?.label ?? item?.city ?? item?.geo_region ?? item?.name ?? ''
+        ).trim()
+        const key = String(item?.region ?? item?.key ?? item?.bucket ?? '').trim()
+        const name = label || displayLabelForAnalyticsGeoRegionKey(key) || key
+        const c = Number(item?.count ?? item?.volume ?? item?.requests ?? 0)
+        return name
+          ? {
+              name,
+              key: key || name,
+              bucketTitle: key && key !== name ? `${name} (bucket ${key})` : name,
+              c: Number.isFinite(c) ? c : 0
+            }
+          : null
       })
-    }
-    catalogueRequestsForPharmacy.forEach((r) => {
-      const names = Array.isArray(r.medicine_names)
-        ? r.medicine_names
-        : r.medicine_name
-          ? [r.medicine_name]
-          : []
-      names.forEach((raw) => {
-        const t = String(raw || '').trim()
-        if (!t) return
-        const k = t.toLowerCase()
-        const row = ensure(k, t)
-        row.requestMentions += 1
-      })
-    })
-    return [...byKey.values()].sort((a, b) => {
-      const sa = (a.requestMentions || 0) + (a.analyticsSearches || 0)
-      const sb = (b.requestMentions || 0) + (b.analyticsSearches || 0)
-      if (sb !== sa) return sb - sa
-      return a.name.localeCompare(b.name)
-    })
-  }, [catalogueRequestsForPharmacy, searchVolumeAnalytics, cataloguePharmacyFilter])
-
-  const filteredMedicineCatalogue = useMemo(() => {
-    const q = catalogueQuery.trim().toLowerCase()
-    if (!q) return medicineCatalogueRows
-    return medicineCatalogueRows.filter((r) => r.name.toLowerCase().includes(q))
-  }, [medicineCatalogueRows, catalogueQuery])
-
-  /** Medicines mentioned on patient requests, grouped by pharmacy (for catalogue UI). */
-  const medicineCatalogueByPharmacy = useMemo(() => {
-    return perPharmacyRows
-      .map((row) => {
-        const byKey = new Map()
-        row.requests.forEach((r) => {
-          const names = Array.isArray(r.medicine_names)
-            ? r.medicine_names
-            : r.medicine_name
-              ? [r.medicine_name]
-              : []
-          names.forEach((raw) => {
-            const t = String(raw || '').trim()
-            if (!t) return
-            const k = t.toLowerCase()
-            const prev = byKey.get(k)
-            byKey.set(k, { key: k, name: t, mentions: (prev?.mentions || 0) + 1 })
-          })
-        })
-        const items = [...byKey.values()].sort((a, b) => b.mentions - a.mentions)
-        return {
-          pharmacyId: String(row.__id),
-          name: row.__name,
-          items
-        }
-      })
-      .filter((s) => s.items.length > 0)
-      .sort((a, b) => b.items.length - a.items.length)
-  }, [perPharmacyRows])
-
-  const filteredCatalogueByPharmacy = useMemo(() => {
-    const q = catalogueQuery.trim().toLowerCase()
-    if (!q) return medicineCatalogueByPharmacy
-    return medicineCatalogueByPharmacy
-      .map((sec) => ({
-        ...sec,
-        items: sec.items.filter((i) => i.name.toLowerCase().includes(q))
-      }))
-      .filter(
-        (sec) =>
-          sec.items.length > 0 ||
-          sec.name.toLowerCase().includes(q)
-      )
-  }, [medicineCatalogueByPharmacy, catalogueQuery])
+      .filter(Boolean)
+    const max = rows.length ? Math.max(...rows.map((r) => r.c)) : 1
+    return rows.slice(0, 10).map((r) => ({
+      ...r,
+      widthPct: Math.min(100, Math.round((r.c / max) * 100))
+    }))
+  }, [mergedSearchVolume])
 
   const loadInventoryReports = useCallback(async () => {
     setInventoryReportsLoading(true)
@@ -1057,82 +1683,110 @@ function AdminDashboard() {
     )
   }, [inventoryReportsByPharmacy, inventoryReportSearch])
 
-  const navSections = useMemo(
-    () =>
-      buildAdminNavSections({
-        usersApproxCount,
-        pharmacyRegistryCount,
-        pharmacistRegistryCount,
-        requestStatsTotal: requestStats.total,
-        reservationsTotal
-      }),
-    [
-      usersApproxCount,
-      pharmacyRegistryCount,
-      pharmacistRegistryCount,
-      requestStats.total,
-      reservationsTotal
-    ]
-  )
+  const inventoryOverviewStats = useMemo(() => {
+    let branches = inventoryReportsByPharmacy.length
+    let stockLines = 0
+    let inStockSum = 0
+    let lowStockSum = 0
+    let outStockSum = 0
+
+    for (const r of inventoryReportsByPharmacy) {
+      if (r.error) continue
+      const items = Array.isArray(r.items) ? r.items : []
+      stockLines += items.length
+      const s = r.summary
+      if (s && typeof s === 'object') {
+        const nIn = Number(s.in_stock)
+        const nLow = Number(s.low_stock)
+        const nOut = Number(s.out_of_stock)
+        if (Number.isFinite(nIn)) inStockSum += nIn
+        if (Number.isFinite(nLow)) lowStockSum += nLow
+        if (Number.isFinite(nOut)) outStockSum += nOut
+      }
+    }
+
+    return {
+      branches,
+      stockLines,
+      inStockSum,
+      lowStockSum,
+      outStockSum
+    }
+  }, [inventoryReportsByPharmacy])
 
   const pageHead = useMemo(() => {
+    const subDate = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })
+    const regionLine = 'MediBot Zimbabwe'
+    const dataStamp =
+      activeTab === 'overview' && mediBotOverview?.generated_at
+        ? ` · Snapshot: ${formatMediBotGeneratedAt(mediBotOverview.generated_at)}`
+        : ''
     const heads = {
-      overview: { title: 'Dashboard', subtitle: 'Operations snapshot · pharmacies, requests, and reservations.' },
-      users: {
-        title: 'Users & Patients',
-        subtitle: 'Staff accounts and patient sessions — loaded from paginated admin APIs.'
+      overview: { title: 'Admin Dashboard', subtitle: `${regionLine} · ${subDate}${dataStamp}` },
+      'layer1-system': {
+        title: 'System health, geography & latency',
+        subtitle: 'Layer 1 — vital signs, regional demand, and latency trends'
       },
-      pharmacies: {
-        title: 'Pharmacy Registry',
-        subtitle: `${pharmacyRegistryCount} registered pharmacies`
+      'verification-queue': { title: 'Verification queue', subtitle: 'Pharmacies pending registry approval' },
+      pharmacies: { title: 'All pharmacies', subtitle: `${pharmacyRegistryCount} registered` },
+      'algorithm-stewardship': {
+        title: 'Algorithm & content policy',
+        subtitle: 'MCDA weights, ranking presets (rural, shortage, affordability), and patient disclaimer'
       },
-      medicines: {
-        title: 'Medicine Catalogue',
-        subtitle:
-          cataloguePharmacyFilter === 'all'
-            ? `${medicineCatalogueByPharmacy.length} pharmacies with request mentions · ${medicineCatalogueRows.length} unique names (requests + analytics).`
-            : `${medicineCatalogueRows.length} names in requests linked to the selected pharmacy (loaded data).`
+      'chatbot-audit': { title: 'AI safety · Chatbot audit', subtitle: 'Flagged conversations and transcripts' },
+      users: { title: 'Users', subtitle: 'Staff and patient directory' },
+      'command-center': {
+        title: 'Command center',
+        subtitle: 'Redirected — use Algorithm & content policy or Chatbot audit'
       },
       inventory: { title: 'Inventory Reports', subtitle: 'Stock and sync health across branches.' },
       pharmacists: { title: 'Pharmacists', subtitle: `${pharmacistRegistryCount} registered staff` },
       requests: { title: 'Patient requests', subtitle: `${requestStats.total} in current dataset` },
       reservations: { title: 'Reservations', subtitle: `${reservationsTotal} total` },
-      'search-analytics': {
-        title: 'Search Analytics',
-        subtitle: `${requestStats.total.toLocaleString()} patient requests in loaded data · trend by day`
-      },
-      chatbot: { title: 'AI Chatbot Logs', subtitle: 'Conversations and transcripts from chatbot logs API.' },
-      audit: { title: 'Audit Trail', subtitle: 'Admin actions and results.' }
+      chatbot: { title: 'AI Chatbot Logs', subtitle: 'Conversations and transcripts from chatbot logs API.' }
     }
-    return heads[activeTab] || heads.overview
+    return heads[activeTab] || { title: 'Admin Dashboard', subtitle: `${regionLine} · ${subDate}${dataStamp}` }
   }, [
     activeTab,
-    usersApproxCount,
+    mediBotOverview?.generated_at,
     pharmacyRegistryCount,
     pharmacistRegistryCount,
     requestStats.total,
-    reservationsTotal,
-    medicineCatalogueRows.length,
-    medicineCatalogueByPharmacy.length,
-    cataloguePharmacyFilter
+    reservationsTotal
   ])
 
-  const pharmacyOpsScore = (p) => {
-    let score = 68
-    if (Number.isFinite(p.responseRateNum)) score = Math.round(p.responseRateNum * 0.82 + 12)
-    if (Number.isFinite(p.ratingNum)) score = Math.round((score * 0.55) + (p.ratingNum / 5) * 45)
-    if (p.needsAttention) score -= 20
-    score -= Math.min(18, p.pendingRequests * 4)
-    score -= Math.min(12, Math.max(0, p.activeReservations - 2) * 2)
-    return Math.max(12, Math.min(100, score))
-  }
+  /** 1 = best; same numeric score shares the same rank (competition ranking). */
+  const pharmacyRankById = useMemo(() => {
+    const scored = perPharmacyRows.map((p) => ({
+      id: String(p.__id),
+      score: rankingScoreLikePharmacyDashboardRow(p),
+      name: p.__name
+    }))
+    scored.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score
+      return String(a.name).localeCompare(String(b.name))
+    })
+    const map = new Map()
+    let pos = 0
+    while (pos < scored.length) {
+      const rank = pos + 1
+      const s = scored[pos].score
+      let next = pos + 1
+      while (next < scored.length && scored[next].score === s) next++
+      for (let k = pos; k < next; k++) {
+        map.set(scored[k].id, rank)
+      }
+      pos = next
+    }
+    return map
+  }, [perPharmacyRows])
 
   const registryMetrics = useMemo(() => {
     const s = registrySummary
     if (s && typeof s === 'object') {
       const total = Number(s.total_registered ?? s.total)
       const verified = Number(s.verified)
-      const pending = Number(s.pending_review ?? s.pending)
+      const pending = Number(s.pending_review ?? s.pending ?? s.pending_count ?? s.reg_pending)
       const suspended = Number(s.suspended)
       const hasNumber = [total, verified, pending, suspended].some((n) => Number.isFinite(n))
       if (hasNumber) {
@@ -1156,17 +1810,32 @@ function AdminDashboard() {
     return { total: perPharmacyRows.length, verified, pending, suspended }
   }, [registrySummary, perPharmacyRows])
 
+  /** Registry column rank: `ranking-summary.leaderboard` when matched to this row; else dashboard composite rank. */
+  const rankingSummaryRankByRegistryId = useMemo(() => {
+    const lb = parseLeaderboardRowsFromSummary(adminPortalRankingSummary)
+    const map = new Map()
+    if (!lb || lb.length === 0) return map
+    for (const p of perPharmacyRows) {
+      const pid = String(p.__id)
+      const row = lb.find(
+        (r) =>
+          String(r.pharmacy_id) === pid ||
+          leaderboardPharmacyIdsMatch(r.pharmacy_id, pid, p.__name)
+      )
+      if (row && Number.isFinite(Number(row.rank))) map.set(pid, Number(row.rank))
+    }
+    return map
+  }, [adminPortalRankingSummary, perPharmacyRows])
+
   const registryTableRows = useMemo(() => {
     const q = registryQuery.trim().toLowerCase()
     let rows = perPharmacyRows.map((p) => {
-      const mr = Number(p.match_rate)
-      const __matchPct = Number.isFinite(mr)
-        ? Math.round(Math.min(100, Math.max(0, mr)))
-        : pharmacyOpsScore(p)
+      const id = String(p.__id)
       return {
         ...p,
         __registryStatus: getPharmacyRegistryStatus(p),
-        __matchPct
+        __rank:
+          rankingSummaryRankByRegistryId.get(id) ?? pharmacyRankById.get(id) ?? null
       }
     })
     if (registryStatusFilter !== 'all') {
@@ -1187,20 +1856,13 @@ function AdminDashboard() {
     }
     rows.sort((a, b) => String(a.__name).localeCompare(String(b.__name)))
     return rows
-  }, [perPharmacyRows, registryQuery, registryStatusFilter])
-
-  const pharmacyPerformanceRows = useMemo(() => {
-    return [...perPharmacyRows]
-      .map((p) => {
-        const mr = Number(p.match_rate)
-        const __score = Number.isFinite(mr)
-          ? Math.round(Math.min(100, Math.max(0, mr)))
-          : pharmacyOpsScore(p)
-        return { ...p, __score }
-      })
-      .sort((a, b) => b.__score - a.__score)
-      .slice(0, 3)
-  }, [perPharmacyRows])
+  }, [
+    perPharmacyRows,
+    registryQuery,
+    registryStatusFilter,
+    pharmacyRankById,
+    rankingSummaryRankByRegistryId
+  ])
 
   const recentRegistrationRows = useMemo(() => {
     return perPharmacyRows.slice(0, 3).map((p) => ({
@@ -1211,66 +1873,143 @@ function AdminDashboard() {
     }))
   }, [perPharmacyRows])
 
-  const overviewAlerts = useMemo(() => {
-    const items = []
-    if (requestStats.pending > 0) {
-      items.push({
-        id: 'pending-all',
-        title: `${requestStats.pending} patient requests awaiting response`,
-        meta: 'Platform-wide',
-        tone: 'critical',
-        ago: 'Live'
+  /** Pharmacy ranking overview: only `GET …/ranking-summary/` → `leaderboard` (same as pharmacy portal). No MediBot/widget fallback. */
+  const overviewPharmacyMatchRows = useMemo(() => {
+    const fromPortalRankingApi = parseLeaderboardRowsFromSummary(adminPortalRankingSummary)
+    if (!fromPortalRankingApi || fromPortalRankingApi.length === 0) return []
+    return fromPortalRankingApi.map((row) => {
+      const match = perPharmacyRows.find(
+        (p) =>
+          String(p.__id) === String(row.pharmacy_id) ||
+          leaderboardPharmacyIdsMatch(row.pharmacy_id, String(p.__id), p.__name)
+      )
+      return {
+        __rowKey: row.key,
+        __id: String(row.pharmacy_id ?? row.key),
+        __name: row.name,
+        __score: row.score != null ? Math.round(row.score) : null,
+        __displayRank: row.rank,
+        city: match?.location_suburb || match?.city,
+        location_suburb: match?.location_suburb,
+        address: match?.address,
+        needsAttention: match?.needsAttention ?? false
+      }
+    })
+  }, [adminPortalRankingSummary, perPharmacyRows])
+
+  const overviewRecentRegistrationRows = useMemo(() => {
+    const w = mediBotOverview?.widgets?.recent_registrations
+    if (!Array.isArray(w) || w.length === 0) return recentRegistrationRows
+    return w
+      .map((row, i) => {
+        if (!row || typeof row !== 'object') return null
+        const name = String(row.name ?? row.pharmacy_name ?? '').trim()
+        if (!name) return null
+        return {
+          id: String(row.id ?? row.pharmacy_id ?? `rr-${i}`),
+          name,
+          type: String(row.type ?? row.pharmacy_type ?? 'Pharmacy'),
+          status: String(row.status ?? row.registry_status ?? 'Pending')
+        }
       })
-    }
-    perPharmacyRows
-      .filter((p) => p.needsAttention)
-      .slice(0, 4)
-      .forEach((p) => {
-        items.push({
-          id: `ph-${p.__id}`,
-          title: p.__name,
-          meta: p.pendingRequests
-            ? `${p.pendingRequests} pending requests · ${p.activeReservations} active holds`
-            : 'Queued for operational review',
-          tone: 'warn',
-          ago: '—'
-        })
-      })
-    if (items.length === 0) {
-      items.push({
-        id: 'clear',
-        title: 'No critical queue items',
-        meta: 'All monitored organisations within thresholds',
-        tone: 'ok',
-        ago: 'Just now'
-      })
-    }
-    return items.slice(0, 8)
-  }, [perPharmacyRows, requestStats.pending])
+      .filter(Boolean)
+      .slice(0, 8)
+  }, [mediBotOverview, recentRegistrationRows])
+
+  const chatbotAuditBadgeCount = useMemo(
+    () => chatbotLogs.filter(chatbotLogRowNeedsReview).length,
+    [chatbotLogs]
+  )
+
+  const adminRequestsToday = useMemo(() => {
+    const start = new Date()
+    start.setHours(0, 0, 0, 0)
+    return allRequests.filter((r) => {
+      const raw = r.created_at || r.submitted_at
+      if (!raw) return false
+      const t = new Date(raw).getTime()
+      return Number.isFinite(t) && t >= start.getTime()
+    }).length
+  }, [allRequests])
+
+  const systemStatus = useMemo(
+    () => ({
+      uptimePct:
+        overview?.uptime_pct_this_month != null
+          ? `${Number(overview.uptime_pct_this_month).toFixed(1)}%`
+          : overview?.uptime_percent != null
+            ? `${Number(overview.uptime_percent).toFixed(1)}%`
+            : '99.9%',
+      avgResponse:
+        overview?.avg_response_time_ms != null
+          ? `${(Number(overview.avg_response_time_ms) / 1000).toFixed(1)}s`
+          : overview?.avg_response_time != null
+            ? `${overview.avg_response_time}s`
+            : '—',
+      platformUsers: platformUsersCount > 0 ? platformUsersCount : '—',
+      platformSessions: platformSessionsCount > 0 ? platformSessionsCount : '—',
+      operational: true
+    }),
+    [overview, platformUsersCount, platformSessionsCount]
+  )
+
+  const adminProfile = useMemo(
+    () => ({ name: 'S. Administrator', role: 'System Admin · Full access', initials: 'SA' }),
+    []
+  )
+
+  const navSections = useMemo(
+    () =>
+      buildAdminNavSections({
+        usersApproxCount,
+        pharmacyRegistryCount,
+        pharmacistRegistryCount,
+        requestStatsTotal: requestStats.total,
+        reservationsTotal,
+        verificationPendingCount: registryMetrics.pending,
+        chatbotAuditBadgeCount,
+        navBadges: mediBotOverview?.nav_badges
+      }),
+    [
+      usersApproxCount,
+      pharmacyRegistryCount,
+      pharmacistRegistryCount,
+      requestStats.total,
+      reservationsTotal,
+      registryMetrics.pending,
+      chatbotAuditBadgeCount,
+      mediBotOverview?.nav_badges
+    ]
+  )
 
   return (
     <AdminAppShell
       navSections={navSections}
       activeTab={activeTab}
-      onSelectTab={setActiveTab}
+      onSelectTab={selectTab}
       onLogout={logout}
+      systemStatus={systemStatus}
+      adminProfile={adminProfile}
     >
-        <header className="admin-topbar">
+        <header className="admin-topbar admin-topbar--medibot">
           <div>
             <h1>{pageHead.title}</h1>
             <p>{pageHead.subtitle}</p>
           </div>
-          <div className="admin-topbar-actions">
+          <div className="admin-topbar-actions admin-topbar-actions--medibot">
+            <span className="admin-topbar-clock" title="Local time">
+              {clockStr}
+            </span>
+            <button className="btn-light admin-btn-export" type="button" onClick={() => handleExportReport()} disabled={exportBusy}>
+              {exportBusy ? 'Generating report…' : 'Export report (PDF)'}
+            </button>
+            {activeTab !== 'overview' ? (
+              <button className="btn-light" type="button" onClick={() => handleExportCsv()} disabled={exportBusy || registerSaving}>
+                Export CSV
+              </button>
+            ) : null}
             {activeTab === 'pharmacies' && (
               <>
-                <button
-                  className="btn-light"
-                  type="button"
-                  onClick={() => handleExportRegistry()}
-                  disabled={exportBusy || registerSaving}
-                >
-                  {exportBusy ? 'Exporting…' : 'Export CSV'}
-                </button>
                 <button
                   className="btn-notify"
                   type="button"
@@ -1281,9 +2020,6 @@ function AdminDashboard() {
                 </button>
               </>
             )}
-            <button className="btn-light" type="button" onClick={() => fetchDashboard({ silent: true })} disabled={refreshing}>
-              <RefreshCw size={16} /> {refreshing ? 'Refreshing...' : 'Refresh'}
-            </button>
           </div>
         </header>
 
@@ -1293,45 +2029,29 @@ function AdminDashboard() {
         ) : (
           <>
             {activeTab === 'overview' && (
-            <div className="admin-overview-layout">
-            <section className="admin-stats-grid admin-stats-grid--kpi admin-stats-grid--compact" aria-label="Key metrics">
-              <div className="admin-stat-card admin-stat-card--plain">
-                <div className="admin-stat-card-body">
-                  <p className="label">Registered pharmacies</p>
-                  <h3>{pharmacyRegistryCount}</h3>
-                  <p className={`admin-stat-trend ${attentionCount > 0 ? 'trend-warn' : 'trend-up'}`}>
-                    {attentionCount > 0 ? `↑ ${attentionCount} need review` : '↑ Stable'}
-                  </p>
-                </div>
-              </div>
-              <div className="admin-stat-card admin-stat-card--plain">
-                <div className="admin-stat-card-body">
-                  <p className="label">Pharmacists</p>
-                  <h3>{pharmacistRegistryCount}</h3>
-                  <p className="admin-stat-trend trend-up">↑ {pharmacistRegistryCount} on record</p>
-                </div>
-              </div>
-              <div className="admin-stat-card admin-stat-card--plain">
-                <div className="admin-stat-card-body">
-                  <p className="label">Patient requests</p>
-                  <h3>{requestStats.total}</h3>
-                  <p className={`admin-stat-trend ${requestStats.pending > 0 ? 'trend-warn' : 'trend-up'}`}>
-                    {requestStats.pending > 0
-                      ? `↑ ${requestStats.pending} pending`
-                      : `↑ ${requestStats.responded} responded`}
-                  </p>
-                </div>
-              </div>
-              <div className="admin-stat-card admin-stat-card--plain">
-                <div className="admin-stat-card-body">
-                  <p className="label">Reservations</p>
-                  <h3>{reservationsTotal}</h3>
-                  <p className={`admin-stat-trend ${activeReservationsTotal > 5 ? 'trend-warn' : 'trend-up'}`}>
-                    ↑ {activeReservationsTotal} active
-                  </p>
-                </div>
-              </div>
-            </section>
+            <div className="admin-overview-layout admin-overview-layout--compact">
+            <MediBotOverviewSections
+              mediBot={mediBotOverview}
+              overview={overview}
+              usersApproxCount={usersApproxCount}
+              pharmacyRegistryCount={pharmacyRegistryCount}
+              registryMetrics={registryMetrics}
+              allRequests={allRequests}
+              perPharmacyRows={perPharmacyRows}
+              onOpenVerification={() => selectTab('verification-queue')}
+              onNavigateTab={selectTab}
+              searchVolumeSnapshot={mergedSearchVolume}
+              dashboardVerificationQueue={dashboardVerificationQueue}
+              chatbotLogs={chatbotLogs}
+              chatbotLogsLoading={chatbotLogsLoading}
+              chatbotLogsHasLoaded={chatbotLogsHasLoaded}
+              chatbotLogsError={chatbotLogsError}
+              onOpenChatbotAuditConversation={(cid) => {
+                selectTab('chatbot-audit')
+                setSelectedConversationId(String(cid))
+                setChatbotTranscriptDrawerOpen(true)
+              }}
+            />
 
             <div className="admin-overview-mid">
               <section className="admin-panel admin-panel-tall admin-panel--compact">
@@ -1372,62 +2092,78 @@ function AdminDashboard() {
                       />
                     )}
                   </div>
-                  {topMedicineTopics.length > 0 && (
-                    <div className="admin-top-medicines">
-                      <h3 className="admin-top-medicines-title">Top searched medicines</h3>
-                      <ul className="admin-top-medicines-list">
-                        {topMedicineTopics.map((row) => (
-                          <li key={row.name} className="admin-top-medicine-row">
-                            <span className="admin-top-medicine-name" title={row.name}>
-                              {row.name}
-                            </span>
-                            <div className="admin-top-medicine-bar-track" aria-hidden>
-                              <div
-                                className="admin-top-medicine-bar-fill"
-                                style={{ width: `${row.widthPct}%` }}
-                              />
-                            </div>
-                            <span className="admin-top-medicine-count">{row.c}</span>
-                          </li>
-                        ))}
-                      </ul>
+                  {(topMedicineTopics.length > 0 || topRegionTopics.length > 0) && (
+                    <div className="admin-search-volume-rankings">
+                      {topMedicineTopics.length > 0 && (
+                        <div className="admin-top-medicines">
+                          <h3 className="admin-top-medicines-title">Top searched medicines</h3>
+                          <ul className="admin-top-medicines-list">
+                            {topMedicineTopics.map((row) => (
+                              <li key={row.name} className="admin-top-medicine-row">
+                                <span className="admin-top-medicine-name" title={row.name}>
+                                  {row.name}
+                                </span>
+                                <div className="admin-top-medicine-bar-track" aria-hidden>
+                                  <div
+                                    className="admin-top-medicine-bar-fill"
+                                    style={{ width: `${row.widthPct}%` }}
+                                  />
+                                </div>
+                                <span className="admin-top-medicine-count">{row.c}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {topRegionTopics.length > 0 && (
+                        <div className="admin-top-medicines admin-top-regions">
+                          <h3 className="admin-top-medicines-title">Top regions (by request)</h3>
+                          <ul className="admin-top-medicines-list">
+                            {topRegionTopics.map((row) => (
+                              <li key={row.key} className="admin-top-medicine-row">
+                                <span className="admin-top-medicine-name" title={row.bucketTitle}>
+                                  {row.name}
+                                </span>
+                                <div
+                                  className="admin-top-medicine-bar-track admin-top-region-bar-track"
+                                  aria-hidden
+                                >
+                                  <div
+                                    className="admin-top-medicine-bar-fill admin-top-region-bar-fill"
+                                    style={{ width: `${row.widthPct}%` }}
+                                  />
+                                </div>
+                                <span className="admin-top-medicine-count">{row.c}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
               </section>
-
-              <section className="admin-panel admin-panel-side" aria-label="Operational alerts">
-                <div className="admin-panel-head">
-                  <h2>System alerts</h2>
-                </div>
-                <ul className="admin-alert-list">
-                  {overviewAlerts.map((a) => (
-                    <li key={a.id} className="admin-alert-row">
-                      <span className={`admin-alert-dot admin-alert-dot--${a.tone}`} aria-hidden />
-                      <div className="admin-alert-body">
-                        <div className="admin-alert-title">{a.title}</div>
-                        <div className="admin-alert-meta">
-                          {a.meta}
-                          {a.ago ? ` · ${a.ago}` : ''}
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </section>
             </div>
 
             <div className="admin-overview-bottom">
-              <section className="admin-panel" aria-label="Pharmacy match rate">
+              <section className="admin-panel" aria-label="Pharmacy ranking">
                 <div className="admin-panel-head">
-                  <h2>Pharmacy match rate</h2>
+                  <h2>Pharmacy ranking</h2>
                 </div>
-                {pharmacyPerformanceRows.length === 0 ? (
-                  <p className="muted">No pharmacies to rank yet.</p>
+                {adminPortalRankingSummaryLoading ? (
+                  <p className="muted">Loading ranking summary…</p>
+                ) : overviewPharmacyMatchRows.length === 0 ? (
+                  <p className="muted">
+                    {pharmacists.length === 0
+                      ? 'No pharmacists in dashboard data — cannot load ranking summary.'
+                      : adminPortalRankingSummary
+                        ? 'Ranking summary did not include a non-empty leaderboard list.'
+                        : 'Ranking summary could not be loaded.'}
+                  </p>
                 ) : (
                   <ul className="admin-performance-list">
-                    {pharmacyPerformanceRows.map((p) => {
-                      const score = p.__score
+                    {overviewPharmacyMatchRows.map((p) => {
+                      const rank = p.__displayRank
                       const city =
                         p.city ||
                         p.location_suburb ||
@@ -1436,7 +2172,7 @@ function AdminDashboard() {
                         ''
                       const verified = !p.needsAttention
                       return (
-                        <li key={p.__id} className="admin-performance-row">
+                        <li key={p.__rowKey ?? p.__id} className="admin-performance-row">
                           <div className="admin-performance-main">
                             <span className="admin-performance-name">{p.__name}</span>
                             <span className="admin-performance-loc muted">
@@ -1446,8 +2182,12 @@ function AdminDashboard() {
                             </span>
                           </div>
                           <div className="admin-performance-score">
-                            <span className={`admin-alert-dot admin-alert-dot--${score >= 70 ? 'ok' : score >= 50 ? 'warn' : 'critical'}`} aria-hidden />
-                            <span className="admin-performance-pct">{score}%</span>
+                            <span className="admin-performance-pct mono">
+                              {rank != null ? `#${rank}` : '—'}
+                              {p.__score != null && (
+                                <span className="muted"> · {p.__score}</span>
+                              )}
+                            </span>
                           </div>
                         </li>
                       )
@@ -1460,7 +2200,7 @@ function AdminDashboard() {
                 <div className="admin-panel-head">
                   <h2>Recent registrations</h2>
                 </div>
-                {recentRegistrationRows.length === 0 ? (
+                {overviewRecentRegistrationRows.length === 0 ? (
                   <p className="muted">No registration rows yet.</p>
                 ) : (
                   <div className="admin-table-compact-wrap">
@@ -1469,7 +2209,7 @@ function AdminDashboard() {
                         <tr><th>Name</th><th>Type</th><th>Status</th></tr>
                       </thead>
                       <tbody>
-                        {recentRegistrationRows.map((row) => (
+                        {overviewRecentRegistrationRows.map((row) => (
                           <tr key={row.id}>
                             <td className="cell-strong">{row.name}</td>
                             <td>{row.type}</td>
@@ -1545,7 +2285,9 @@ function AdminDashboard() {
                           <th>Type</th>
                           <th>Medicines listed</th>
                           <th>Last sync</th>
-                          <th>Match rate</th>
+                          <th title="Rank from pharmacy ranking-summary leaderboard when this row matches; otherwise dashboard composite.">
+                            Ranking
+                          </th>
                           <th>Status</th>
                         </tr>
                       </thead>
@@ -1568,19 +2310,8 @@ function AdminDashboard() {
                             p.created_at ||
                             null
                           const lastSync = lastSyncRaw ? formatAdminDateShort(lastSyncRaw) : '—'
-                          const statusKey = p.__registryStatus
-                          const statusLabel =
-                            statusKey === 'suspended'
-                              ? 'Suspended'
-                              : statusKey === 'pending'
-                                ? 'Pending'
-                                : 'Verified'
-                          const pillClass =
-                            statusKey === 'suspended'
-                              ? 'status-suspended'
-                              : statusKey === 'pending'
-                                ? 'status-pending'
-                                : 'status-responded'
+                          const apiSel = pharmacyRowApiStatus(p)
+                          const saving = pharmacyRegistrySavingId === String(p.__id)
                           return (
                             <tr key={p.__id}>
                               <td className="cell-strong">{p.__name}</td>
@@ -1588,19 +2319,28 @@ function AdminDashboard() {
                               <td>{type}</td>
                               <td className="mono">{medicinesListed}</td>
                               <td className="cell-muted admin-registry-nowrap">{lastSync}</td>
-                              <td>
-                                <div className="admin-match-rate-cell">
-                                  <div className="admin-match-rate-track" aria-hidden>
-                                    <div
-                                      className={`admin-match-rate-fill admin-match-rate-fill--${p.__matchPct >= 70 ? 'hi' : p.__matchPct >= 45 ? 'mid' : 'low'}`}
-                                      style={{ width: `${p.__matchPct}%` }}
-                                    />
-                                  </div>
-                                  <span className="admin-match-rate-pct">{p.__matchPct}%</span>
-                                </div>
+                              <td className="mono cell-strong">
+                                {p.__rank != null ? `#${p.__rank}` : '—'}
                               </td>
                               <td>
-                                <span className={`status-pill ${pillClass}`}>{statusLabel}</span>
+                                <select
+                                  className="admin-filter-select admin-registry-status-select"
+                                  aria-label={`Verification status for ${p.__name}`}
+                                  value={apiSel}
+                                  disabled={saving}
+                                  onChange={(e) => {
+                                    const v = e.target.value
+                                    if (v === apiSel) return
+                                    applyPharmacyRegistryStatus(p.__id, v)
+                                  }}
+                                >
+                                  <option value="verified">Verified</option>
+                                  <option value="pending_review">Pending review</option>
+                                  <option value="suspended">Suspended</option>
+                                </select>
+                                {saving ? (
+                                  <span className="admin-registry-status-saving muted">Saving…</span>
+                                ) : null}
                               </td>
                             </tr>
                           )
@@ -1613,147 +2353,108 @@ function AdminDashboard() {
             </>
             )}
 
-            {activeTab === 'overview' && (
-            <section className="admin-panel admin-panel--compact">
-              <div className="admin-panel-head">
-                <h2>Pharmacy focus</h2>
-                <span className="admin-count-chip">{selectedPharmacy ? 1 : 0}</span>
-              </div>
-              <div className="admin-overview-controls">
-                <input
-                  className="admin-filter-input"
-                  value={pharmacySearch}
-                  onChange={(e) => setPharmacySearch(e.target.value)}
-                  placeholder="Search pharmacy or area"
-                />
-                <select
-                  className="admin-filter-select"
-                  value={selectedPharmacyId}
-                  onChange={(e) => setSelectedPharmacyId(e.target.value)}
-                >
-                  {visiblePharmacies.length === 0 && (
-                    <option value="">No pharmacy available</option>
-                  )}
-                  {visiblePharmacies.map((p) => (
-                    <option key={`pick-${p.__id}`} value={String(p.__id)}>
-                      {p.__name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {visiblePharmacies.length === 0 ? (
-                <p className="muted">No pharmacies found.</p>
-              ) : (
-                <div className="admin-request-grid">
-                  {selectedPharmacy && (
-                    <article className="admin-request-card pharmacy-card formal-card" key={selectedPharmacy.__id}>
-                      <div className="pharmacy-card-head">
-                        <h3 className="pharmacy-card-title">{selectedPharmacy.__name}</h3>
-                        <span className={`status-pill ${selectedPharmacy.needsAttention ? 'status-pending' : 'status-responded'}`}>
-                          {selectedPharmacy.needsAttention ? 'Needs attention' : 'Healthy'}
-                        </span>
-                      </div>
-                      <p className="cell-muted pharmacy-card-address">
-                        {selectedPharmacy.address || selectedPharmacy.location_address || selectedPharmacy.location_suburb || 'Address N/A'}
-                      </p>
-                      <p className="cell-muted pharmacy-card-meta">
-                        Rating: {selectedPharmacy.rating ?? selectedPharmacy.pharmacy_rating ?? 'N/A'} | Ratings: {selectedPharmacy.rating_count ?? '0'} | Response Rate:{' '}
-                        {selectedPharmacy.response_rate != null ? `${selectedPharmacy.response_rate}%` : 'N/A'}
-                      </p>
-                      <div className="pharmacy-kpi-row">
-                        <span className="kpi-chip">Pending req: {selectedPharmacy.pendingRequests}</span>
-                        <span className="kpi-chip">Active reservations: {selectedPharmacy.activeReservations}</span>
-                        <span className="kpi-chip">Pharmacists: {selectedPharmacy.pharmacists.length}</span>
-                      </div>
+            {(activeTab === 'command-center' ||
+              activeTab === 'weight-tuning' ||
+              activeTab === 'ranking-profiles' ||
+              activeTab === 'content-policy' ||
+              activeTab === 'algorithm-stewardship') && (
+              <AdminCommandCenter
+                surface={activeTab === 'command-center' ? 'full' : 'stewardship'}
+                overview={overview}
+                mediBot={mediBotOverview}
+                allRequests={allRequests}
+                allReservations={allReservations}
+                pharmacies={pharmacies}
+                perPharmacyRows={perPharmacyRows}
+                adminPortalRankingSummary={adminPortalRankingSummary}
+                adminPortalRankingSummaryLoading={adminPortalRankingSummaryLoading}
+                chatbotLogs={chatbotLogs}
+                chatbotLogsLoading={chatbotLogsLoading}
+                onUpdatePharmacy={(id, patch) => updateAdminPharmacy(id, patch)}
+                onRefreshDashboard={() => fetchDashboard({ silent: true })}
+                onOpenChatbotTab={openChatbotFromCommandCenter}
+                onOpenAuditTab={() => selectTab('chatbot-audit')}
+                formatDate={formatAdminDateShort}
+              />
+            )}
 
-                      <div className="pharmacy-card-block">
-                        <p className="cell-strong pharmacy-card-block-title">Pharmacists ({selectedPharmacy.pharmacists.length})</p>
-                        {selectedPharmacy.pharmacists.length === 0 ? (
-                          <p className="cell-muted">No pharmacists linked.</p>
-                        ) : (
-                          <ul className="admin-request-events">
-                            {selectedPharmacy.pharmacists.slice(0, 2).map((staff, sIdx) => (
-                              <li key={staff.pharmacist_id || `${staff.email}-${sIdx}`} className="pharmacy-list-row">
-                                <div className="admin-request-event-main">
-                                  <span className="cell-strong">
-                                    {staff.full_name || staff.name || [staff.first_name, staff.last_name].filter(Boolean).join(' ') || 'N/A'}
-                                  </span>
-                                </div>
-                                <div className="admin-request-event-meta">
-                                  <span>{staff.email || 'No email'}</span>
-                                </div>
-                              </li>
-                            ))}
-                            {selectedPharmacy.pharmacists.length > 2 && (
-                              <li className="pharmacy-card-more">+{selectedPharmacy.pharmacists.length - 2} more pharmacists</li>
-                            )}
-                          </ul>
-                        )}
-                      </div>
+            {activeTab === 'layer1-system' && (
+              <AdminLayer1OperationsView
+                mediBot={mediBotOverview}
+                overview={overview}
+                usersApproxCount={usersApproxCount}
+                pharmacyRegistryCount={pharmacyRegistryCount}
+                registryMetrics={registryMetrics}
+                requestStats={requestStats}
+                allRequests={allRequests}
+                searchVolumeSnapshot={mergedSearchVolume}
+              />
+            )}
 
-                      <div className="pharmacy-card-block">
-                        <p className="cell-strong pharmacy-card-block-title">Requests ({selectedPharmacy.requests.length})</p>
-                        {selectedPharmacy.requests.length === 0 ? (
-                          <p className="cell-muted">No matched requests.</p>
-                        ) : (
-                          <ul className="admin-request-events">
-                            {selectedPharmacy.requests.slice(0, 2).map((r, rIdx) => (
-                              <li key={r.request_id || `${selectedPharmacy.__id}-req-${rIdx}`} className="pharmacy-list-row">
-                                <div className="admin-request-event-main">
-                                  <span className="mono">{r.short_request_id || r.request_id || 'N/A'}</span>
-                                  <span className={`status-pill status-${String(r.status || '').toLowerCase() || 'unknown'}`}>
-                                    {r.status || 'N/A'}
-                                  </span>
-                                </div>
-                                <div className="admin-request-event-meta">
-                                  <span>{Array.isArray(r.medicine_names) ? r.medicine_names.join(', ') : (r.medicine_name || 'N/A')}</span>
-                                </div>
-                              </li>
-                            ))}
-                            {selectedPharmacy.requests.length > 2 && (
-                              <li className="pharmacy-card-more">+{selectedPharmacy.requests.length - 2} more requests</li>
-                            )}
-                          </ul>
-                        )}
-                      </div>
-
-                      <div className="pharmacy-card-block">
-                        <p className="cell-strong pharmacy-card-block-title">Reservations ({selectedPharmacy.reservations.length})</p>
-                        {selectedPharmacy.reservations.length === 0 ? (
-                          <p className="cell-muted">No reservations yet.</p>
-                        ) : (
-                          <ul className="admin-request-events">
-                            {selectedPharmacy.reservations.slice(0, 2).map((res, zIdx) => (
-                              <li key={res.reservation_id || `${selectedPharmacy.__id}-res-${zIdx}`} className="pharmacy-list-row">
-                                <div className="admin-request-event-main">
-                                  <span className="mono">{res.reservation_id || 'N/A'}</span>
-                                  <span className={`status-pill status-${String(res.status || '').toLowerCase() || 'unknown'}`}>
-                                    {res.status || 'N/A'}
-                                  </span>
-                                </div>
-                                <div className="admin-request-event-meta">
-                                  <span>{res.patient_name || 'Unknown patient'} · {res.patient_phone || 'no phone'}</span>
-                                </div>
-                              </li>
-                            ))}
-                            {selectedPharmacy.reservations.length > 2 && (
-                              <li className="pharmacy-card-more">+{selectedPharmacy.reservations.length - 2} more reservations</li>
-                            )}
-                          </ul>
-                        )}
-                      </div>
-                    </article>
-                  )}
-                  {!selectedPharmacy && (
-                    <p className="muted">Select a pharmacy from the list above to view its focus card.</p>
-                  )}
-                </div>
-              )}
-            </section>
+            {activeTab === 'verification-queue' && (
+              <AdminVerificationQueueView
+                mediBot={mediBotOverview}
+                dashboardVerificationQueue={dashboardVerificationQueue}
+                perPharmacyRows={perPharmacyRows}
+                onOpenPharmacies={() => selectTab('pharmacies')}
+                onUpdatePharmacy={(id, patch) => updateAdminPharmacy(id, patch)}
+                onRefreshDashboard={() => fetchDashboard({ silent: true })}
+                formatDate={formatAdminDateShort}
+              />
             )}
 
             {activeTab === 'users' && (
               <div className="admin-users-page">
+                <div className="medibot-users-mock-stats">
+                  <div className="medibot-users-mock-stat">
+                    <div className="medibot-users-mock-stat-ic" style={{ background: 'rgba(0,212,184,0.15)' }}>
+                      👥
+                    </div>
+                    <div>
+                      <div className="medibot-mock-stat-val" style={{ color: '#00d4b8' }}>
+                        {usersListTotal != null ? usersListTotal.toLocaleString() : usersList.length || '—'}
+                      </div>
+                      <div className="medibot-mock-stat-label">Total users</div>
+                    </div>
+                  </div>
+                  <div className="medibot-users-mock-stat">
+                    <div className="medibot-users-mock-stat-ic" style={{ background: 'rgba(16,185,129,0.15)' }}>
+                      🟢
+                    </div>
+                    <div>
+                      <div className="medibot-mock-stat-val" style={{ color: '#34d399' }}>
+                        {usersList.length
+                          ? usersList.filter((u) => u.is_active !== false).length
+                          : '—'}
+                      </div>
+                      <div className="medibot-mock-stat-label">Active on this page</div>
+                    </div>
+                  </div>
+                  <div className="medibot-users-mock-stat">
+                    <div className="medibot-users-mock-stat-ic" style={{ background: 'rgba(239,68,68,0.15)' }}>
+                      🔴
+                    </div>
+                    <div>
+                      <div className="medibot-mock-stat-val" style={{ color: '#f87171' }}>
+                        {usersList.length ? usersList.filter((u) => u.is_active === false).length : '—'}
+                      </div>
+                      <div className="medibot-mock-stat-label">Inactive on page</div>
+                    </div>
+                  </div>
+                  <div className="medibot-users-mock-stat">
+                    <div className="medibot-users-mock-stat-ic" style={{ background: 'rgba(245,158,11,0.15)' }}>
+                      🛡️
+                    </div>
+                    <div>
+                      <div className="medibot-mock-stat-val" style={{ color: '#fbbf24' }}>
+                        {usersList.length
+                          ? usersList.filter((u) => u.is_staff || u.is_superuser).length
+                          : '—'}
+                      </div>
+                      <div className="medibot-mock-stat-label">Staff on page</div>
+                    </div>
+                  </div>
+                </div>
                 <section className="admin-panel">
                   <div className="admin-panel-head">
                     <h2>Platform users</h2>
@@ -1848,9 +2549,6 @@ function AdminDashboard() {
                       placeholder="Search by session id…"
                       aria-label="Search patient sessions"
                     />
-                    <button type="button" className="btn-light" onClick={() => navigate('/admin/control-center')}>
-                      Control center
-                    </button>
                   </div>
                   {patientsListError && <div className="admin-error admin-error--inline">{patientsListError}</div>}
                   {patientsListLoading ? (
@@ -1926,364 +2624,195 @@ function AdminDashboard() {
               </div>
             )}
 
-            {activeTab === 'medicines' && (
-              <section className="admin-panel">
-                <div className="admin-panel-head">
-                  <h2>Medicine catalogue</h2>
-                  <span className="admin-count-chip">{filteredMedicineCatalogue.length}</span>
-                </div>
-                <p className="muted admin-users-hint">
-                  <strong>All pharmacies</strong> shows medicines grouped by branch (from loaded patient requests), similar
-                  to an inventory overview. Pick one pharmacy to focus; search analytics (
-                  <span className="mono">top_medicines</span>) is merged when viewing all.
-                </p>
-                <div className="admin-registry-filters admin-catalogue-filters">
-                  <select
-                    className="admin-filter-select"
-                    value={cataloguePharmacyFilter}
-                    onChange={(e) => setCataloguePharmacyFilter(e.target.value)}
-                    aria-label="Filter catalogue by pharmacy"
-                  >
-                    <option value="all">All pharmacies</option>
-                    {pharmacies.map((p, idx) => {
-                      const pid = String(p.pharmacy_id ?? p.id ?? idx)
-                      const label = p.pharmacy_name || p.name || `Pharmacy ${idx + 1}`
-                      return (
-                        <option key={pid} value={pid}>
-                          {label}
-                        </option>
-                      )
-                    })}
-                  </select>
-                  <input
-                    className="admin-filter-input admin-filter-input--wide"
-                    value={catalogueQuery}
-                    onChange={(e) => setCatalogueQuery(e.target.value)}
-                    placeholder="Filter by medicine or pharmacy name…"
-                    aria-label="Filter medicine catalogue"
-                  />
-                </div>
-                {cataloguePharmacyFilter === 'all' && topMedicineTopics.length > 0 && (
-                  <div className="admin-catalogue-platform-bar">
-                    <span className="admin-catalogue-platform-label muted">Platform search interest</span>
-                    <div className="admin-catalogue-platform-chips">
-                      {topMedicineTopics.slice(0, 12).map((t) => (
-                        <span key={t.name} className="admin-catalogue-platform-chip" title="From analytics or requests">
-                          {t.name}
-                          <span className="admin-catalogue-platform-chip-n">{t.c}</span>
-                        </span>
-                      ))}
+            {activeTab === 'inventory' && (
+              <div className="admin-inventory-page">
+                <header className="admin-inventory-hero">
+                  <div className="admin-inventory-hero-top">
+                    <div className="admin-inventory-hero-intro">
+                      <h2 className="admin-inventory-title">Inventory reports</h2>
+                      <p className="admin-inventory-lead">Per-branch stock visibility across linked pharmacies.</p>
+                    </div>
+                    <div className="admin-inventory-toolbar">
+                      <input
+                        className="admin-filter-input admin-inventory-search"
+                        value={inventoryReportSearch}
+                        onChange={(e) => setInventoryReportSearch(e.target.value)}
+                        placeholder="Filter branches…"
+                        aria-label="Filter inventory reports by pharmacy"
+                      />
+                      <button
+                        type="button"
+                        className="btn-light admin-inventory-reload"
+                        disabled={inventoryReportsLoading}
+                        onClick={() => loadInventoryReports()}
+                      >
+                        <RefreshCw size={15} className={inventoryReportsLoading ? 'admin-spin' : ''} aria-hidden />
+                        {inventoryReportsLoading ? 'Loading…' : 'Reload'}
+                      </button>
+                    </div>
+                  </div>
+                </header>
+
+                {inventoryReportsByPharmacy.length > 0 && (
+                  <div className="admin-inventory-kpis" aria-label="Inventory overview">
+                    <div className="admin-inventory-kpi admin-inventory-kpi--muted">
+                      <span className="admin-inventory-kpi-label">Branches</span>
+                      <span className="admin-inventory-kpi-value">
+                        {inventoryOverviewStats.branches.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="admin-inventory-kpi admin-inventory-kpi--muted">
+                      <span className="admin-inventory-kpi-label">Stock lines</span>
+                      <span className="admin-inventory-kpi-value">
+                        {inventoryOverviewStats.stockLines.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="admin-inventory-kpi admin-inventory-kpi--ok">
+                      <span className="admin-inventory-kpi-label">In stock Σ</span>
+                      <span className="admin-inventory-kpi-value">
+                        {inventoryOverviewStats.inStockSum.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="admin-inventory-kpi admin-inventory-kpi--warn">
+                      <span className="admin-inventory-kpi-label">Low Σ</span>
+                      <span className="admin-inventory-kpi-value">
+                        {inventoryOverviewStats.lowStockSum.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="admin-inventory-kpi admin-inventory-kpi--bad">
+                      <span className="admin-inventory-kpi-label">Out Σ</span>
+                      <span className="admin-inventory-kpi-value">
+                        {inventoryOverviewStats.outStockSum.toLocaleString()}
+                      </span>
                     </div>
                   </div>
                 )}
-                {medicineCatalogueRows.length === 0 ? (
-                  <p className="muted">
-                    {cataloguePharmacyFilter === 'all'
-                      ? 'No medicine names yet. Load the dashboard with patient requests (or analytics) and use Refresh.'
-                      : 'No medicines found for this pharmacy in loaded requests — try another pharmacy or All pharmacies, or refresh after more data loads.'}
-                  </p>
-                ) : cataloguePharmacyFilter === 'all' ? (
-                  filteredCatalogueByPharmacy.length === 0 ? (
-                    <div className="admin-catalogue-fallback">
-                      <p className="muted">
-                        No per-pharmacy request mentions match your filter. Showing the combined list instead.
-                      </p>
-                      <div className="admin-catalogue-med-grid">
-                        {filteredMedicineCatalogue.slice(0, 200).map((row) => (
-                          <div key={row.key} className="admin-catalogue-med-card">
-                            <div className="admin-catalogue-med-card-name">{row.name}</div>
-                            <div className="admin-catalogue-med-card-meta">
-                              <span>Requests {row.requestMentions}</span>
-                              {row.analyticsSearches != null && (
-                                <span>Analytics {row.analyticsSearches}</span>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+
+                <section className="admin-panel admin-inventory-panel">
+                  {inventoryReportsLoading && inventoryReportsByPharmacy.length === 0 ? (
+                    <p className="admin-inventory-state admin-inventory-state--muted">
+                      Loading inventory from all pharmacies…
+                    </p>
+                  ) : visibleInventoryReports.length === 0 ? (
+                    <p className="admin-inventory-state admin-inventory-state--muted">
+                      {inventoryReportSearch.trim()
+                        ? 'No pharmacies match your search.'
+                        : 'No pharmacies in the dashboard dataset yet.'}
+                    </p>
                   ) : (
-                    <div className="admin-catalogue-by-pharmacy">
-                      {filteredCatalogueByPharmacy.map((sec) => (
-                        <article key={sec.pharmacyId} className="admin-catalogue-pharmacy-card">
-                          <header className="admin-catalogue-pharmacy-card-head">
-                            <div>
-                              <h3 className="admin-catalogue-pharmacy-title">{sec.name}</h3>
-                              <p className="muted admin-catalogue-pharmacy-sub">
-                                {sec.items.length} medicine{sec.items.length === 1 ? '' : 's'} in loaded requests
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              className="btn-light"
-                              onClick={() => setCataloguePharmacyFilter(sec.pharmacyId)}
-                            >
-                              Focus pharmacy
-                            </button>
-                          </header>
-                          <div className="admin-catalogue-med-grid admin-catalogue-med-grid--compact">
-                            {sec.items.slice(0, 48).map((m) => (
-                              <div key={m.key} className="admin-catalogue-med-card admin-catalogue-med-card--compact">
-                                <div className="admin-catalogue-med-card-name">{m.name}</div>
-                                <span className="admin-catalogue-mention-badge">{m.mentions}</span>
+                    <>
+                    <div className="admin-inventory-panel-head">
+                      <h3 className="admin-inventory-section-title">Branch inventory</h3>
+                      <span className="admin-inventory-section-count">
+                        {visibleInventoryReports.length} branch{visibleInventoryReports.length === 1 ? '' : 'es'}
+                      </span>
+                    </div>
+                    <div className="admin-inventory-pharmacy-grid">
+                      {visibleInventoryReports.map((rep) => (
+                        <article key={String(rep.pharmacyId)} className="admin-inventory-pharmacy-card">
+                          <header className="admin-inventory-card-head">
+                            <div className="admin-inventory-card-title-block">
+                              <div className="admin-inventory-card-icon-wrap" aria-hidden>
+                                <Package size={17} strokeWidth={2} className="admin-inventory-card-icon" />
                               </div>
-                            ))}
-                          </div>
-                          {sec.items.length > 48 && (
-                            <p className="muted admin-catalogue-pharmacy-more">
-                              +{sec.items.length - 48} more — narrow with search or focus this pharmacy
+                              <div className="admin-inventory-card-title-text">
+                                <h3>{rep.pharmacyName}</h3>
+                                {rep.error === 'no_pharmacist' ? (
+                                  <p className="admin-inventory-card-warn muted">
+                                    No pharmacist linked — cannot load stock
+                                  </p>
+                                ) : rep.error ? (
+                                  <p className="admin-inventory-card-warn muted">{rep.error}</p>
+                                ) : (
+                                  <>
+                                    <span className="admin-inventory-line-pill">
+                                      {rep.items.length} stock line{rep.items.length === 1 ? '' : 's'}
+                                    </span>
+                                    <p className="admin-inventory-card-meta muted">
+                                      Pharmacist ID{' '}
+                                      <strong className="mono">{rep.pharmacistId || '—'}</strong>
+                                    </p>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            {rep.summary && !rep.error && (
+                              <div className="admin-inventory-summary-pills">
+                                <span className="admin-inventory-pill admin-inventory-pill--muted" title="Total SKUs">
+                                  <span className="admin-inventory-pill-k">Total</span>
+                                  <strong>{rep.summary.total_medicines ?? rep.items.length}</strong>
+                                </span>
+                                <span className="admin-inventory-pill admin-inventory-pill--ok">
+                                  <span className="admin-inventory-pill-k">In stock</span>
+                                  <strong>{rep.summary.in_stock ?? '—'}</strong>
+                                </span>
+                                <span className="admin-inventory-pill admin-inventory-pill--warn">
+                                  <span className="admin-inventory-pill-k">Low</span>
+                                  <strong>{rep.summary.low_stock ?? '—'}</strong>
+                                </span>
+                                <span className="admin-inventory-pill admin-inventory-pill--bad">
+                                  <span className="admin-inventory-pill-k">Out</span>
+                                  <strong>{rep.summary.out_of_stock ?? '—'}</strong>
+                                </span>
+                              </div>
+                            )}
+                          </header>
+                          {!rep.error && rep.items.length > 0 && (
+                            <div className="admin-inventory-items-wrap">
+                              <div className="admin-inventory-items-head" aria-hidden>
+                                <span>Medicine</span>
+                                <span>Qty</span>
+                                <span>Price</span>
+                                <span>Status</span>
+                              </div>
+                              <ul className="admin-inventory-items-list">
+                                {rep.items.map((item, ix) => (
+                                  <li key={`${item.medicine_name}-${ix}`} className="admin-inventory-item-row">
+                                    <span className="admin-inventory-item-name" data-label="Medicine">
+                                      {item.medicine_name || '—'}
+                                    </span>
+                                    <span
+                                      className="mono admin-inventory-item-qty"
+                                      data-label="Qty"
+                                    >
+                                      {item.quantity ?? '—'}
+                                    </span>
+                                    <span
+                                      className="mono admin-inventory-item-price"
+                                      data-label="Price"
+                                    >
+                                      {formatAdminInventoryItemPrice(item)}
+                                    </span>
+                                    <span
+                                      className={`admin-inventory-status admin-inventory-status--${String(item.status || 'in_stock').replace(/_/g, '-')}`}
+                                      data-label="Status"
+                                    >
+                                      {item.status === 'low_stock'
+                                        ? 'Low'
+                                        : item.status === 'out_of_stock'
+                                          ? 'Out'
+                                          : 'In stock'}
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {!rep.error && rep.items.length === 0 && (
+                            <p className="muted admin-inventory-empty admin-inventory-state">
+                              No stock lines returned for this branch.
                             </p>
                           )}
                         </article>
                       ))}
                     </div>
-                  )
-                ) : (
-                  <div className="admin-catalogue-med-grid">
-                    {filteredMedicineCatalogue.slice(0, 200).map((row) => (
-                      <div key={row.key} className="admin-catalogue-med-card">
-                        <div className="admin-catalogue-med-card-name">{row.name}</div>
-                        <div className="admin-catalogue-med-card-meta">
-                          <span>On requests {row.requestMentions}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
-            )}
-
-            {activeTab === 'inventory' && (
-              <section className="admin-panel">
-                <div className="admin-panel-head">
-                  <h2>Inventory by pharmacy</h2>
-                  <div className="admin-inventory-toolbar">
-                    <input
-                      className="admin-filter-input"
-                      value={inventoryReportSearch}
-                      onChange={(e) => setInventoryReportSearch(e.target.value)}
-                      placeholder="Search pharmacy…"
-                      aria-label="Filter inventory reports by pharmacy"
-                    />
-                    <button
-                      type="button"
-                      className="btn-light"
-                      disabled={inventoryReportsLoading}
-                      onClick={() => loadInventoryReports()}
-                    >
-                      <RefreshCw size={16} className={inventoryReportsLoading ? 'admin-spin' : ''} />
-                      {inventoryReportsLoading ? 'Loading…' : 'Reload stock'}
-                    </button>
-                  </div>
-                </div>
-                <p className="muted admin-users-hint">
-                  Live stock from each branch&apos;s primary linked pharmacist (
-                  <span className="mono">GET …/pharmacist/inventory/</span>). Use Refresh in the header to reload
-                  requests, then <strong>Reload stock</strong> here for up-to-date quantities.
-                </p>
-                {inventoryReportsLoading && inventoryReportsByPharmacy.length === 0 ? (
-                  <p className="muted">Loading inventory from all pharmacies…</p>
-                ) : visibleInventoryReports.length === 0 ? (
-                  <p className="muted">
-                    {inventoryReportSearch.trim()
-                      ? 'No pharmacies match your search.'
-                      : 'No pharmacies in the dashboard dataset yet.'}
-                  </p>
-                ) : (
-                  <div className="admin-inventory-pharmacy-grid">
-                    {visibleInventoryReports.map((rep) => (
-                      <article key={String(rep.pharmacyId)} className="admin-inventory-pharmacy-card">
-                        <header className="admin-inventory-card-head">
-                          <div className="admin-inventory-card-title-row">
-                            <Package size={20} className="admin-inventory-card-icon" aria-hidden />
-                            <div>
-                              <h3>{rep.pharmacyName}</h3>
-                              {rep.error === 'no_pharmacist' ? (
-                                <p className="admin-inventory-card-warn muted">No pharmacist linked — cannot load stock</p>
-                              ) : rep.error ? (
-                                <p className="admin-inventory-card-warn muted">{rep.error}</p>
-                              ) : (
-                                <p className="muted mono admin-inventory-card-sub">
-                                  {rep.items.length} line{rep.items.length === 1 ? '' : 's'} · pharmacist{' '}
-                                  {rep.pharmacistId || '—'}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                          {rep.summary && !rep.error && (
-                            <div className="admin-inventory-summary-pills">
-                              <span title="Total SKUs">
-                                Total <strong>{rep.summary.total_medicines ?? rep.items.length}</strong>
-                              </span>
-                              <span className="admin-inventory-pill admin-inventory-pill--ok">
-                                In stock <strong>{rep.summary.in_stock ?? '—'}</strong>
-                              </span>
-                              <span className="admin-inventory-pill admin-inventory-pill--warn">
-                                Low <strong>{rep.summary.low_stock ?? '—'}</strong>
-                              </span>
-                              <span className="admin-inventory-pill admin-inventory-pill--bad">
-                                Out <strong>{rep.summary.out_of_stock ?? '—'}</strong>
-                              </span>
-                            </div>
-                          )}
-                        </header>
-                        {!rep.error && rep.items.length > 0 && (
-                          <div className="admin-inventory-items-wrap">
-                            <div className="admin-inventory-items-head">
-                              <span>Medicine</span>
-                              <span>Qty</span>
-                              <span>Price</span>
-                              <span>Status</span>
-                            </div>
-                            <ul className="admin-inventory-items-list">
-                              {rep.items.map((item, ix) => (
-                                <li key={`${item.medicine_name}-${ix}`} className="admin-inventory-item-row">
-                                  <span className="admin-inventory-item-name">{item.medicine_name || '—'}</span>
-                                  <span className="mono">{item.quantity ?? '—'}</span>
-                                  <span className="mono">{formatAdminInventoryItemPrice(item)}</span>
-                                  <span
-                                    className={`admin-inventory-status admin-inventory-status--${String(item.status || 'in_stock').replace(/_/g, '-')}`}
-                                  >
-                                    {item.status === 'low_stock'
-                                      ? 'Low'
-                                      : item.status === 'out_of_stock'
-                                        ? 'Out'
-                                        : 'OK'}
-                                  </span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                        {!rep.error && rep.items.length === 0 && (
-                          <p className="muted admin-inventory-empty">No stock lines returned for this branch.</p>
-                        )}
-                      </article>
-                    ))}
-                  </div>
-                )}
-              </section>
-            )}
-
-            {activeTab === 'search-analytics' && (
-              <div className="admin-analytics-page">
-                <section className="admin-metrics-row" aria-label="Search analytics summary">
-                  <div className="admin-metric-inline">
-                    <span className="admin-metric-inline-label">
-                      {searchVolumeAnalytics?.total_requests_in_window != null
-                        ? 'Requests (analytics window)'
-                        : 'Total requests (loaded)'}
-                    </span>
-                    <strong className="admin-metric-inline-value">
-                      {(searchVolumeAnalytics?.total_requests_in_window ?? requestStats.total).toLocaleString()}
-                    </strong>
-                  </div>
-                  <div className="admin-metric-inline">
-                    <span className="admin-metric-inline-label">Responded</span>
-                    <strong className="admin-metric-inline-value admin-metric-good">{requestStats.responded.toLocaleString()}</strong>
-                  </div>
-                  <div className="admin-metric-inline">
-                    <span className="admin-metric-inline-label">Pending</span>
-                    <strong className="admin-metric-inline-value admin-metric-warn">{requestStats.pending.toLocaleString()}</strong>
-                  </div>
-                  <div className="admin-metric-inline">
-                    <span className="admin-metric-inline-label">Unique medicines</span>
-                    <strong className="admin-metric-inline-value">{topMedicineTopics.length}</strong>
-                  </div>
-                  {searchVolumeAnalytics && (
-                    <>
-                      <div className="admin-metric-inline">
-                        <span className="admin-metric-inline-label">Zero-result requests</span>
-                        <strong className="admin-metric-inline-value admin-metric-warn">
-                          {searchVolumeAnalytics.zero_result_requests != null
-                            ? Number(searchVolumeAnalytics.zero_result_requests).toLocaleString()
-                            : '—'}
-                        </strong>
-                      </div>
-                      <div className="admin-metric-inline">
-                        <span className="admin-metric-inline-label">Zero-result rate</span>
-                        <strong className="admin-metric-inline-value">
-                          {(() => {
-                            const zr = Number(searchVolumeAnalytics.zero_result_rate)
-                            if (searchVolumeAnalytics.zero_result_rate == null || !Number.isFinite(zr)) return '—'
-                            const pct = zr <= 1 ? zr * 100 : zr
-                            return `${pct.toFixed(1)}%`
-                          })()}
-                        </strong>
-                      </div>
                     </>
                   )}
                 </section>
-                <div className="admin-analytics-grid">
-                  <section className="admin-panel admin-panel-tall">
-                    <div className="admin-panel-head">
-                      <h2>Search trend — {activityRange === '30d' ? '30 days' : '7 days'}</h2>
-                      <div className="admin-segment-toggle" role="group" aria-label="Date range">
-                        <button
-                          type="button"
-                          className={activityRange === '7d' ? 'active' : ''}
-                          onClick={() => setActivityRange('7d')}
-                        >
-                          7d
-                        </button>
-                        <button
-                          type="button"
-                          className={activityRange === '30d' ? 'active' : ''}
-                          onClick={() => setActivityRange('30d')}
-                        >
-                          30d
-                        </button>
-                      </div>
-                    </div>
-                    <div className="admin-search-trend-stack">
-                      <div className="admin-trend-wrap">
-                        {requestActivitySeries.counts.every((n) => n === 0) ? (
-                          <p className="admin-activity-empty muted">
-                            {requestActivitySeries.source === 'api'
-                              ? 'No volume in this range from search analytics.'
-                              : 'No dated requests in this range.'}
-                          </p>
-                        ) : (
-                          <AdminSearchTrendChart
-                            counts={requestActivitySeries.counts}
-                            labels={requestActivitySeries.labels}
-                            labelShort={requestActivitySeries.labelShort}
-                            gradientId={`${trendGradientId}-a`}
-                          />
-                        )}
-                      </div>
-                    </div>
-                  </section>
-                  <section className="admin-panel admin-panel-tall">
-                    <div className="admin-panel-head">
-                      <h2>Top searched medicines</h2>
-                    </div>
-                    {topMedicineTopics.length === 0 ? (
-                      <p className="muted">No medicine names in loaded requests yet.</p>
-                    ) : (
-                      <ul className="admin-top-medicines-list admin-top-medicines-list--spaced">
-                        {topMedicineTopics.map((row) => (
-                          <li key={row.name} className="admin-top-medicine-row">
-                            <span className="admin-top-medicine-name" title={row.name}>
-                              {row.name}
-                            </span>
-                            <div className="admin-top-medicine-bar-track" aria-hidden>
-                              <div
-                                className="admin-top-medicine-bar-fill"
-                                style={{ width: `${row.widthPct}%` }}
-                              />
-                            </div>
-                            <span className="admin-top-medicine-pct">{row.widthPct}%</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </section>
-                </div>
               </div>
             )}
 
-            {activeTab === 'chatbot' && (
+            {(activeTab === 'chatbot' || activeTab === 'chatbot-audit') && (
               <>
               <div className="admin-chatbot-logs-page">
                 <section className="admin-panel">
@@ -2487,87 +3016,6 @@ function AdminDashboard() {
                 </div>
               )}
               </>
-            )}
-
-            {activeTab === 'audit' && (
-              <section className="admin-panel">
-                <div className="admin-panel-head">
-                  <h2>Audit trail</h2>
-                  {auditTotal != null && (
-                    <span className="admin-count-chip">{auditTotal.toLocaleString()} events</span>
-                  )}
-                </div>
-                {auditError && <div className="admin-error admin-error--inline">{auditError}</div>}
-                {auditLoading ? (
-                  <p className="muted">Loading audit log…</p>
-                ) : auditLogs.length === 0 ? (
-                  <p className="muted">No audit entries for this page.</p>
-                ) : (
-                  <>
-                    <div className="table-wrap">
-                      <table className="admin-table admin-audit-table">
-                        <thead>
-                          <tr>
-                            <th>Time</th>
-                            <th>Action</th>
-                            <th>Actor</th>
-                            <th>Details</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {auditLogs.map((log, idx) => {
-                            const key = log.id ?? log.pk ?? `${auditPage}-${idx}`
-                            const t = log.created_at ?? log.timestamp ?? log.performed_at
-                            const action = log.action ?? log.event ?? log.operation ?? '—'
-                            const actor =
-                              log.user_email ?? log.actor ?? log.admin_username ?? log.user ?? log.user_id ?? '—'
-                            const rawDetail =
-                              log.details ?? log.message ?? log.target ?? log.metadata ?? log.change_summary ?? ''
-                            const detailStr =
-                              typeof rawDetail === 'object'
-                                ? JSON.stringify(rawDetail)
-                                : String(rawDetail || '—')
-                            return (
-                              <tr key={key}>
-                                <td className="cell-muted admin-registry-nowrap">{formatAdminDateShort(t)}</td>
-                                <td className="cell-strong">{String(action)}</td>
-                                <td>{String(actor)}</td>
-                                <td className="admin-audit-detail" title={detailStr}>
-                                  {detailStr.length > 160 ? `${detailStr.slice(0, 160)}…` : detailStr}
-                                </td>
-                              </tr>
-                            )
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                    <div className="admin-audit-pagination">
-                      <button
-                        type="button"
-                        className="btn-light"
-                        disabled={auditPage <= 1 || auditLoading}
-                        onClick={() => setAuditPage((p) => Math.max(1, p - 1))}
-                      >
-                        Previous
-                      </button>
-                      <span className="muted">Page {auditPage}</span>
-                      <button
-                        type="button"
-                        className="btn-light"
-                        disabled={
-                          auditLoading ||
-                          (auditTotal != null
-                            ? auditPage * 50 >= auditTotal
-                            : auditLogs.length < 50)
-                        }
-                        onClick={() => setAuditPage((p) => p + 1)}
-                      >
-                        Next
-                      </button>
-                    </div>
-                  </>
-                )}
-              </section>
             )}
 
             {activeTab === 'pharmacists' && (
@@ -2831,5 +3279,3 @@ function AdminDashboard() {
     </AdminAppShell>
   )
 }
-
-export default AdminDashboard

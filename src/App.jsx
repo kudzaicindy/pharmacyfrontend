@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import LandingPage from './pages/LandingPage'
 import Login from './pages/Login'
+import ForgotPassword from './pages/ForgotPassword'
 import Register from './pages/Register'
 import PatientLayout from './components/PatientLayout'
 import PatientDashboard from './pages/PatientDashboard'
@@ -20,6 +21,7 @@ import AdminRequestDetailPage from './pages/AdminRequestDetailPage'
 import AdminPatientControlPage from './pages/AdminPatientControlPage'
 import AdminPharmaciesPage from './pages/AdminPharmaciesPage'
 import AdminPharmacistsPage from './pages/AdminPharmacistsPage'
+import MySearch from './pages/MySearch'
 import './App.css'
 
 function App() {
@@ -29,8 +31,11 @@ function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/pharmacy/login" element={<Login />} />
         <Route path="/admin/login" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/my-search" element={<MySearch />} />
 
         <Route path="/patient" element={<PatientLayout />}>
           <Route index element={<Navigate to="/patient/dashboard" replace />} />

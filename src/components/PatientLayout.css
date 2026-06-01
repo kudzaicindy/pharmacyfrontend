@@ -4,6 +4,9 @@
   display: flex;
   background: var(--bg, #f8fafc);
   color: var(--text, #1e293b);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.45;
 }
 
 :root {
@@ -31,7 +34,7 @@
   --shadow-sm: 0 1px 3px rgba(0,0,0,.06);
   --shadow: 0 4px 20px rgba(0,0,0,.08);
   --shadow-lg: 0 10px 40px rgba(0,0,0,.12);
-  --radius: 14px;
+  --radius: 12px;
   --radius-sm: 8px;
 }
 
@@ -41,7 +44,7 @@
   left: 0;
   top: 0;
   bottom: 0;
-  width: 240px;
+  width: 220px;
   background: var(--navy);
   display: flex;
   flex-direction: column;
@@ -49,16 +52,16 @@
   overflow-y: auto;
 }
 .sb-logo {
-  font-family: 'Syne', sans-serif;
-  font-size: 18px;
-  font-weight: 800;
+  font-family: var(--font-serif);
+  font-size: 17px;
+  font-weight: 700;
   color: #fff;
-  padding: 24px 22px 22px;
+  padding: 16px 18px 14px;
   border-bottom: 1px solid rgba(255,255,255,.08);
 }
 .sb-logo span { color: #2dd4bf; }
 .sb-user-card {
-  padding: 16px 22px;
+  padding: 12px 18px;
   border-bottom: 1px solid rgba(255,255,255,.08);
   display: flex;
   align-items: center;
@@ -79,7 +82,7 @@
 .sb-uname { font-size: 13px; font-weight: 600; color: #fff; }
 .sb-urole { font-size: 11px; color: rgba(255,255,255,.4); }
 .sb-section {
-  padding: 16px 22px 6px;
+  padding: 12px 18px 4px;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 1.2px;
@@ -90,7 +93,7 @@
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 9px 22px;
+  padding: 8px 18px;
   color: rgba(255,255,255,.52);
   font-size: 13.5px;
   font-weight: 500;
@@ -116,13 +119,13 @@
   border-radius: 20px;
 }
 .sb-badge.teal { background: var(--teal); }
-.sb-foot { margin-top: auto; padding: 18px 22px; border-top: 1px solid rgba(255,255,255,.08); }
+.sb-foot { margin-top: auto; padding: 14px 18px; border-top: 1px solid rgba(255,255,255,.08); }
 .sb-item-btn { padding: 0; color: rgba(255,255,255,.4); }
 
 /* Main */
 .main {
-  margin-left: 240px;
-  padding: 28px 32px;
+  margin-left: 220px;
+  padding: 16px 20px;
   min-height: 100vh;
   flex: 1;
 }
@@ -145,9 +148,9 @@
   justify-content: space-between;
 }
 .pl-mobile-logo {
-  font-family: 'Syne', sans-serif;
-  font-size: 18px;
-  font-weight: 800;
+  font-family: var(--font-serif);
+  font-size: 17px;
+  font-weight: 700;
   color: #fff;
 }
 .pl-mobile-logo span { color: #2dd4bf; }
@@ -201,9 +204,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 26px;
+  margin-bottom: 16px;
 }
-.topbar h1 { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 700; letter-spacing: -.5px; }
+.topbar h1 { font-family: var(--font-serif); font-size: 19px; font-weight: 700; letter-spacing: -0.03em; }
 .topbar p { color: var(--muted); font-size: 13px; margin-top: 2px; }
 .topbar-right { display: flex; gap: 10px; align-items: center; }
 
@@ -214,7 +217,7 @@
   gap: 7px;
   padding: 9px 18px;
   border-radius: var(--radius-sm);
-  font-family: 'DM Sans', sans-serif;
+  font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -294,7 +297,7 @@
 .sc.blue .sc-icon { background: var(--blue-light); }
 .sc.purple .sc-icon { background: var(--purple-light); }
 .sc-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
-.sc-val { font-family: 'Syne', sans-serif; font-size: 26px; font-weight: 700; margin-top: 4px; }
+.sc-val { font-family: var(--font-serif); font-size: 26px; font-weight: 700; margin-top: 4px; }
 .sc-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
 
 /* Badges */
@@ -324,7 +327,7 @@
   padding: 10px 13px;
   border: 1.5px solid var(--border);
   border-radius: var(--radius-sm);
-  font-family: 'DM Sans', sans-serif;
+  font-family: var(--font-sans);
   font-size: 13.5px;
   color: var(--text);
   outline: none;
@@ -481,7 +484,7 @@
 }
 .pharm-name { font-weight: 600; font-size: 13.5px; }
 .pharm-dist { font-size: 12px; color: var(--muted); margin-top: 1px; }
-.pharm-price { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; color: var(--teal); margin-left: auto; }
+.pharm-price { font-family: var(--font-serif); font-size: 15px; font-weight: 700; color: var(--teal); margin-left: auto; }
 .pharm-tag { font-size: 11px; font-weight: 600; background: var(--green-light); color: var(--green); padding: 2px 8px; border-radius: 20px; }
 .pharm-tag-green { background: var(--green-light); color: var(--green); }
 .pharm-tag-red { background: var(--red-light); color: var(--red); }
@@ -508,7 +511,7 @@
 .result-meta { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
 .result-badges { display: flex; gap: 8px; margin-top: 8px; }
 .result-price-wrap { text-align: right; }
-.result-price { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; color: var(--teal); }
+.result-price { font-family: var(--font-serif); font-size: 22px; font-weight: 800; color: var(--teal); }
 .result-price-sub { font-size: 12px; color: var(--muted); }
 .result-actions { display: flex; flex-direction: column; gap: 6px; }
 
@@ -527,7 +530,7 @@
 .history-item-med { font-weight: 700; font-size: 13.5px; }
 .history-item-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
 .history-item-right { text-align: right; }
-.history-item-price { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 16px; color: var(--teal); }
+.history-item-price { font-family: var(--font-serif); font-weight: 700; font-size: 16px; color: var(--teal); }
 
 /* Notifications */
 .notif-tabs { display: flex; gap: 8px; margin-bottom: 20px; }
@@ -549,7 +552,7 @@
 .profile-left { display: flex; flex-direction: column; gap: 16px; }
 .profile-avatar-card { text-align: center; padding: 28px; }
 .profile-avatar { width: 80px; height: 80px; border-radius: 50%; background: var(--teal); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 700; color: #fff; margin: 0 auto 14px; }
-.profile-name { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; }
+.profile-name { font-family: var(--font-serif); font-size: 18px; font-weight: 700; }
 .profile-email { font-size: 13px; color: var(--muted); margin-top: 4px; }
 .profile-avatar-card .badge { margin-top: 14px; }
 .profile-avatar-card .btn { margin-top: 16px; width: 100%; justify-content: center; font-size: 13px; }

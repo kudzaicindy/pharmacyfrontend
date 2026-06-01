@@ -13,7 +13,7 @@
 }
 
 .landing-page.lp-v2 {
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: var(--font-sans);
   background: var(--cream);
   color: var(--text);
   overflow-x: hidden;
@@ -27,7 +27,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1.1rem 5%;
+  padding: 0.65rem 5%;
   transition: all 0.4s ease;
 }
 
@@ -38,9 +38,9 @@
 }
 
 .lp-v2 .logo {
-  font-family: 'Fraunces', serif;
-  font-weight: 900;
-  font-size: 1.6rem;
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: 1.35rem;
   color: var(--white);
   letter-spacing: -0.3px;
 }
@@ -49,7 +49,7 @@
 
 .lp-v2 .nav-links {
   display: flex;
-  gap: 2rem;
+  gap: 1.25rem;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -104,7 +104,7 @@
   color: rgba(255, 255, 255, 0.8);
   border-radius: 50px;
   padding: 0.55rem 1.2rem;
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.85rem;
   text-decoration: none;
   cursor: pointer;
@@ -119,7 +119,7 @@
   border: none;
   border-radius: 50px;
   padding: 0.58rem 1.4rem;
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.85rem;
   font-weight: 600;
   text-decoration: none;
@@ -128,6 +128,174 @@
 }
 
 .lp-v2 .nav-solid-btn:hover { background: var(--teal-lt); transform: translateY(-1px); }
+
+.lp-v2 .lp-get-started {
+  position: relative;
+}
+
+.lp-v2 .lp-get-started-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+}
+
+.lp-v2 .lp-get-started-chevron {
+  transition: transform 0.2s ease;
+}
+
+.lp-v2 .lp-get-started-chevron.open {
+  transform: rotate(180deg);
+}
+
+.lp-v2 .lp-get-started-menu {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  min-width: 240px;
+  padding: 0.4rem;
+  background: #fff;
+  border: 1px solid rgba(13, 148, 136, 0.15);
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(6, 15, 28, 0.18);
+  z-index: 500;
+}
+
+.lp-v2 .lp-get-started-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 10px;
+  text-decoration: none;
+  color: #0f172a;
+  transition: background 0.15s ease;
+}
+
+.lp-v2 .lp-get-started-item svg {
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+  color: var(--teal);
+}
+
+.lp-v2 .lp-get-started-item strong {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.lp-v2 .lp-get-started-item small {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.lp-v2 .lp-get-started-item:hover {
+  background: rgba(13, 148, 136, 0.08);
+}
+
+.lp-v2 .lp-mobile-get-started-label {
+  margin: 0.25rem 0 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.lp-v2 .lp-mobile-login-btn {
+  text-align: center;
+  justify-content: center;
+}
+
+.lp-v2 .lp-pickup-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1001;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.65rem 1rem;
+  margin: 0;
+  border: none;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: linear-gradient(90deg, #0f766e 0%, #0d9488 100%);
+  color: #fff;
+  box-shadow: 0 4px 20px rgba(13, 148, 136, 0.35);
+  transition: filter 0.15s ease;
+}
+
+.lp-v2 .lp-pickup-banner:hover {
+  filter: brightness(1.06);
+}
+
+.lp-v2 .lp-pickup-banner-icon {
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
+.lp-v2 .lp-pickup-banner-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  font-size: 0.8rem;
+}
+
+.lp-v2 .lp-pickup-banner-text strong {
+  font-size: 0.85rem;
+}
+
+.lp-v2 .lp-pickup-banner-text span {
+  opacity: 0.92;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lp-v2 .lp-pickup-banner-text span strong {
+  color: #fff;
+  font-weight: 600;
+}
+
+.lp-v2 .lp-pickup-banner-btn {
+  flex-shrink: 0;
+  padding: 0.4rem 0.85rem;
+  border-radius: 50px;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.lp-v2 .lp-pickup-banner-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.lp-v2:has(.lp-pickup-banner) .lp-nav {
+  top: 52px;
+  z-index: 1000;
+}
+
+.lp-v2:has(.lp-pickup-banner) .hero {
+  padding-top: calc(52px + 4rem);
+}
+
+.lp-v2:has(.lp-pickup-banner) .lp-mobile-menu {
+  padding-top: calc(5rem + 52px);
+}
 
 .lp-v2 .lp-hamburger {
   display: none;
@@ -333,7 +501,7 @@
 }
 
 .lp-v2 .hero h1 {
-  font-family: 'Fraunces', serif;
+  font-family: var(--font-serif);
   font-size: clamp(3rem, 6vw, 5.2rem);
   font-weight: 900;
   line-height: 1.05;
@@ -411,7 +579,7 @@
   border: none;
   outline: none;
   color: var(--white);
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
 }
 
@@ -423,7 +591,7 @@
   border: none;
   border-radius: 12px;
   padding: 0.78rem 1.4rem;
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
@@ -483,7 +651,7 @@
 .lp-v2 .stat:last-child { border-right: none; }
 
 .lp-v2 .stat-n {
-  font-family: 'Fraunces', serif;
+  font-family: var(--font-serif);
   font-size: 2rem;
   font-weight: 900;
   color: var(--white);
@@ -696,7 +864,7 @@
 }
 
 .lp-v2 .sec-h {
-  font-family: 'Fraunces', serif;
+  font-family: var(--font-serif);
   font-size: clamp(2rem, 3.5vw, 3rem);
   font-weight: 700;
   color: var(--navy);
@@ -742,7 +910,7 @@
   position: absolute;
   top: 0.8rem;
   right: 1rem;
-  font-family: 'Fraunces', serif;
+  font-family: var(--font-serif);
   font-size: 4rem;
   font-weight: 900;
   color: rgba(13, 148, 136, 0.06);
@@ -763,7 +931,7 @@
 }
 
 .lp-v2 .step h3 {
-  font-family: 'Fraunces', serif;
+  font-family: var(--font-serif);
   font-size: 1.1rem;
   font-weight: 700;
   color: var(--navy);
@@ -848,7 +1016,7 @@
 }
 
 .lp-v2 .feat h4 {
-  font-family: 'Fraunces', serif;
+  font-family: var(--font-serif);
   font-size: 1.05rem;
   font-weight: 700;
   color: var(--white);
@@ -901,7 +1069,7 @@
 }
 
 .lp-v2 .cta-text h2 {
-  font-family: 'Fraunces', serif;
+  font-family: var(--font-serif);
   font-size: clamp(1.8rem, 3vw, 2.6rem);
   font-weight: 700;
   color: var(--white);
@@ -927,7 +1095,7 @@
   border: none;
   border-radius: 12px;
   padding: 0.88rem 2rem;
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   font-weight: 700;
   text-decoration: none;
@@ -946,7 +1114,7 @@
   border: 1.5px solid rgba(255, 255, 255, 0.45);
   border-radius: 12px;
   padding: 0.88rem 2rem;
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   font-weight: 500;
   text-decoration: none;
@@ -974,7 +1142,7 @@
 }
 
 .lp-v2 .foot-logo {
-  font-family: 'Fraunces', serif;
+  font-family: var(--font-serif);
   font-size: 1.2rem;
   font-weight: 900;
   color: var(--white);
@@ -994,16 +1162,16 @@
 /* Floating chatbot button */
 .lp-v2 .lp-chatbot-float {
   position: fixed;
-  bottom: 1.5rem;
-  right: 1.5rem;
+  bottom: 1rem;
+  right: 1rem;
   z-index: 400;
-  width: 56px;
-  height: 56px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   background: var(--teal);
   color: var(--white);
   border: none;
-  box-shadow: 0 8px 24px rgba(13, 148, 136, 0.4);
+  box-shadow: 0 4px 14px rgba(13, 148, 136, 0.35);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1013,7 +1181,7 @@
 
 .lp-v2 .lp-chatbot-float:hover {
   background: var(--teal-lt);
-  transform: scale(1.05);
+  transform: scale(1.04);
 }
 
 .lp-v2 .lp-chatbot-pulse {

@@ -1,10 +1,20 @@
 import { useState, useEffect } from 'react'
-import { getPatientProfile, updatePatientProfile, getPatientSessionIds } from '../utils/api'
+import {
+  getPatientProfile,
+  updatePatientProfile,
+  getPatientSessionIds,
+  getPatientMfaStatus,
+  startPatientMfaSetup,
+  confirmPatientMfaSetup,
+  disablePatientMfa,
+} from '../utils/api'
+import { useLanguage } from '../context/LanguageContext'
+import { profileLangToUi } from '../utils/i18n'
 import '../components/PatientLayout.css'
 
 export default function PatientSettings() {
+  const { t, setLanguage } = useLanguage()
   const { sessionId, conversationId } = getPatientSessionIds()
-  const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -16,6 +26,12 @@ export default function PatientSettings() {
     email_notifications: true,
     drug_interaction_alerts: true,
   })
+  const [mfaEnabled, setMfaEnabled] = useState(false)
+  const [mfaLoading, setMfaLoading] = useState(false)
+  const [mfaError, setMfaError] = useState('')
+  const [mfaInfo, setMfaInfo] = useState('')
+  const [mfaSetupUri, setMfaSetupUri] = useState('')
+  const [mfaOtp, setMfaOtp] = useState('')
 
   useEffect(() => {
     if (!sessionId && !conversationId) {
@@ -28,7 +44,6 @@ export default function PatientSettings() {
       try {
         const res = await getPatientProfile(sessionId, conversationId)
         if (cancelled) return
-        setProfile(res?.profile || res)
         const p = res?.profile || res || {}
         setForm({
           preferred_language: p.preferred_language ?? 'en',
@@ -37,6 +52,15 @@ export default function PatientSettings() {
           email_notifications: p.email_notifications !== false,
           drug_interaction_alerts: p.drug_interaction_alerts !== false,
         })
+        try {
+          const patient = JSON.parse(localStorage.getItem('patient') || '{}')
+          localStorage.setItem(
+            'patient',
+            JSON.stringify({ ...patient, drug_interaction_alerts: p.drug_interaction_alerts !== false })
+          )
+        } catch {
+          /* ignore */
+        }
       } catch (e) {
         if (!cancelled) setError(e.message || 'Failed to load settings')
       } finally {
@@ -46,6 +70,81 @@ export default function PatientSettings() {
     load()
     return () => { cancelled = true }
   }, [sessionId, conversationId])
+
+  useEffect(() => {
+    if (!sessionId && !conversationId) return
+    let cancelled = false
+    setMfaLoading(true)
+    setMfaError('')
+    getPatientMfaStatus(sessionId, conversationId)
+      .then((d) => {
+        if (cancelled) return
+        const on = Boolean(d?.mfa_enabled ?? d?.totp_enabled ?? d?.enabled)
+        setMfaEnabled(on)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setMfaEnabled(false)
+          setMfaError('')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setMfaLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [sessionId, conversationId])
+
+  const handleMfaStart = async () => {
+    if (!sessionId && !conversationId) return
+    setMfaError('')
+    setMfaInfo('')
+    setMfaLoading(true)
+    try {
+      const d = await startPatientMfaSetup(sessionId, conversationId)
+      const uri = d?.otpauth_uri || d?.provisioning_uri || d?.qr_uri || ''
+      setMfaSetupUri(uri)
+      setMfaInfo(uri ? 'Scan the QR in your authenticator app (or enter the secret manually), then enter the 6-digit code below.' : 'Enter the 6-digit code from your authenticator app to finish setup.')
+    } catch (e) {
+      setMfaError(e?.message || 'Two-step setup is not available yet. Ask your server team to enable /patient/mfa/… endpoints.')
+    } finally {
+      setMfaLoading(false)
+    }
+  }
+
+  const handleMfaConfirm = async () => {
+    if (!sessionId && !conversationId) return
+    setMfaError('')
+    setMfaInfo('')
+    setMfaLoading(true)
+    try {
+      await confirmPatientMfaSetup(sessionId, conversationId, mfaOtp)
+      setMfaEnabled(true)
+      setMfaSetupUri('')
+      setMfaOtp('')
+      setMfaInfo('Two-step authentication is now on.')
+    } catch (e) {
+      setMfaError(e?.message || 'Invalid code')
+    } finally {
+      setMfaLoading(false)
+    }
+  }
+
+  const handleMfaDisable = async () => {
+    if (!sessionId && !conversationId) return
+    setMfaError('')
+    setMfaInfo('')
+    setMfaLoading(true)
+    try {
+      await disablePatientMfa(sessionId, conversationId, mfaOtp)
+      setMfaEnabled(false)
+      setMfaOtp('')
+      setMfaInfo('Two-step authentication turned off.')
+    } catch (e) {
+      setMfaError(e?.message || 'Could not turn off 2FA')
+    } finally {
+      setMfaLoading(false)
+    }
+  }
 
   const handleSave = async () => {
     if (!sessionId && !conversationId) {
@@ -63,6 +162,15 @@ export default function PatientSettings() {
         email_notifications: form.email_notifications,
         drug_interaction_alerts: form.drug_interaction_alerts,
       })
+      try {
+        const patient = JSON.parse(localStorage.getItem('patient') || '{}')
+        localStorage.setItem(
+          'patient',
+          JSON.stringify({ ...patient, drug_interaction_alerts: form.drug_interaction_alerts })
+        )
+      } catch {
+        /* ignore */
+      }
       setSuccess('Settings saved.')
     } catch (e) {
       setError(e.message || 'Failed to save')
@@ -100,11 +208,65 @@ export default function PatientSettings() {
                   <label className="settings-toggle"><input type="checkbox" checked={form.email_notifications} onChange={e => setForm({ ...form, email_notifications: e.target.checked })} /><span /></label>
                 </div>
                 <div className="settings-toggle-row">
-                  <div><div className="settings-toggle-title">Drug interaction warnings</div><div className="settings-toggle-desc">Show warnings when searching</div></div>
+                  <div><div className="settings-toggle-title">{t('patient.settings.drugAlerts')}</div><div className="settings-toggle-desc">{t('patient.settings.drugAlertsDesc')}</div></div>
                   <label className="settings-toggle"><input type="checkbox" checked={form.drug_interaction_alerts} onChange={e => setForm({ ...form, drug_interaction_alerts: e.target.checked })} /><span /></label>
                 </div>
               </div>
             </div>
+            <div className="card">
+              <div className="card-header">
+                <div>
+                  <div className="card-title">🔐 Two-step sign-in (2FA)</div>
+                  <div className="card-sub">Authenticator app (TOTP). Requires backend routes under /patient/mfa/</div>
+                </div>
+              </div>
+              <div className="card-body">
+                {mfaError && (
+                  <p style={{ color: '#b91c1c', marginTop: 0 }}>{mfaError}</p>
+                )}
+                {mfaInfo && (
+                  <p style={{ color: '#047857', marginTop: 0 }}>{mfaInfo}</p>
+                )}
+                <p style={{ color: 'var(--muted)', marginTop: 0 }}>
+                  Status:{' '}
+                  <strong>{mfaLoading ? 'Checking…' : mfaEnabled ? 'On' : 'Off'}</strong>
+                </p>
+                {mfaSetupUri && (
+                  <div className="form-group">
+                    <label className="form-label">Setup link (paste into authenticator if needed)</label>
+                    <input className="form-input" readOnly value={mfaSetupUri} />
+                  </div>
+                )}
+                <div className="form-group">
+                  <label className="form-label">6-digit code</label>
+                  <input
+                    className="form-input"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    value={mfaOtp}
+                    onChange={(e) => setMfaOtp(e.target.value.replace(/\s/g, ''))}
+                    placeholder="123456"
+                  />
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {!mfaEnabled ? (
+                    <>
+                      <button type="button" className="btn btn-teal" disabled={mfaLoading} onClick={handleMfaStart}>
+                        Start 2FA setup
+                      </button>
+                      <button type="button" className="btn btn-secondary" disabled={mfaLoading || !mfaOtp} onClick={handleMfaConfirm}>
+                        Confirm &amp; enable
+                      </button>
+                    </>
+                  ) : (
+                    <button type="button" className="btn btn-secondary" disabled={mfaLoading || !mfaOtp} onClick={handleMfaDisable}>
+                      Turn off 2FA (code required)
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
             <div className="card">
               <div className="card-header"><div className="card-title">📍 Location &amp; Language</div></div>
               <div className="card-body">
@@ -123,7 +285,15 @@ export default function PatientSettings() {
                 </div>
                 <div className="form-group">
                   <label className="form-label">Language</label>
-                  <select className="form-input" value={form.preferred_language} onChange={e => setForm({ ...form, preferred_language: e.target.value })}>
+                  <select
+                    className="form-input"
+                    value={form.preferred_language}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      setForm({ ...form, preferred_language: val })
+                      setLanguage(profileLangToUi(val))
+                    }}
+                  >
                     <option value="en">English</option>
                     <option value="sn">Shona</option>
                     <option value="nd">Ndebele</option>
